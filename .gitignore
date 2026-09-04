@@ -9,6 +9,8 @@ coverage/
 data/*.db
 data/*.db-*
 *.log
+.husky
+.agents/
 .DS_Store
 tsconfig.build.tsbuildinfo
 *.tsbuildinfo
