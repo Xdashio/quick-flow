@@ -2,6 +2,13 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Select } from './Select';
+
+const ROLE_OPTIONS = [
+  { value: 'cashier', label: 'Cashier' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'admin', label: 'Admin' },
+];
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
 
@@ -83,15 +90,7 @@ export function CreateUserForm() {
 
       <div className="form-group">
         <label htmlFor="new-user-role">Role</label>
-        <select
-          id="new-user-role"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        >
-          <option value="cashier">Cashier</option>
-          <option value="manager">Manager</option>
-          <option value="admin">Admin</option>
-        </select>
+        <Select id="new-user-role" value={role} onChange={setRole} options={ROLE_OPTIONS} />
       </div>
 
       <button

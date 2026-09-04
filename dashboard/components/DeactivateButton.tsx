@@ -72,7 +72,7 @@ export function DeactivateButton({ userId, userName, isActive, role }: Props) {
         </div>
       ) : (
         <button
-          className="btn"
+          className={`btn ${isActive ? 'btn-danger' : 'btn-success'}`}
           id={`toggle-user-${userId}`}
           onClick={() => open(isActive, role)}
           disabled={loading}
