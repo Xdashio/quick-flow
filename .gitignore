@@ -15,3 +15,6 @@ tsconfig.build.tsbuildinfo
 **/dist/
 **/.agents/
 skills-lock.jsonvenv/
+virtual-printer
+venv
+skills-lock.json
