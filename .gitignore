@@ -13,3 +13,5 @@ tsconfig.build.tsbuildinfo
 **/*.db
 **/*.db-*
 **/dist/
+**/.agents/
+skills-lock.jsonvenv/

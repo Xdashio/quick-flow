@@ -1,0 +1,349 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+:root {
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 
+   * Claude.ai Inspired Warm Editorial Dark Mode (Warm Obsidian & Terracotta)
+   */
+  --bg-app: #141413;
+  --bg-surface: #1b1a17;
+  --bg-surface-elevated: #22211c;
+  --bg-surface-subtle: #292823;
+  --bg-surface-card: #1e1d19;
+  --border-subtle: #2e2c26;
+  --border-strong: #444138;
+  --border-focus: #d97757;
+
+  --text-primary: #f5f4ef;
+  --text-secondary: #b5b3a9;
+  --text-muted: #828076;
+
+  /* Signature Claude Terracotta / Warm Clay */
+  --accent-primary: #d97757;
+  --accent-primary-hover: #c5684a;
+  --accent-primary-text: #ffffff;
+  --accent-terracotta: #d97757;
+  --accent-terracotta-bg: rgba(217, 119, 87, 0.16);
+
+  /* Editorial Accents */
+  --accent-sage: #8da173;
+  --accent-sage-bg: rgba(141, 161, 115, 0.16);
+  --accent-mineral: #7da5ce;
+  --accent-mineral-bg: rgba(125, 165, 206, 0.16);
+  --accent-amber: #e09f3e;
+  --accent-amber-bg: rgba(224, 159, 62, 0.16);
+  --accent-rose: #e06d73;
+  --accent-rose-bg: rgba(224, 109, 115, 0.16);
+  /* Emerald green — used for online/success states */
+  --accent-emerald: #5fad7c;
+  --accent-emerald-bg: rgba(95, 173, 124, 0.16);
+  /* Blue — used for monospace links and API references */
+  --accent-blue: #7da5ce;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 9999px;
+
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-elevated: 0 12px 28px -6px rgba(0, 0, 0, 0.35), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="light"] {
+  /* 
+   * Claude.ai Inspired Warm Editorial Light Mode (Ivory Cream, Warm Linen & Terracotta)
+   */
+  --bg-app: #faf9f5;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f4f3ee;
+  --bg-surface-subtle: #eae8df;
+  --bg-surface-card: #ffffff;
+  --border-subtle: #e8e6dc;
+  --border-strong: #d2cfc3;
+  --border-focus: #d97757;
+
+  --text-primary: #141413;
+  --text-secondary: #5c5a52;
+  --text-muted: #8c897e;
+
+  /* Signature Claude Terracotta */
+  --accent-primary: #d97757;
+  --accent-primary-hover: #c5684a;
+  --accent-primary-text: #ffffff;
+  --accent-terracotta: #d97757;
+  --accent-terracotta-bg: #faece7;
+
+  /* Editorial Accents */
+  --accent-sage: #5e7345;
+  --accent-sage-bg: #edf3e8;
+  --accent-mineral: #48729d;
+  --accent-mineral-bg: #edf4fa;
+  --accent-amber: #b87a28;
+  --accent-amber-bg: #fdf5e8;
+  --accent-rose: #c94a50;
+  --accent-rose-bg: #fdf0f1;
+  /* Emerald green */
+  --accent-emerald: #3d8f5e;
+  --accent-emerald-bg: #e8f5ee;
+  /* Blue */
+  --accent-blue: #48729d;
+
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-elevated: 0 12px 28px -6px rgba(0, 0, 0, 0.07), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* App Shell Container */
+.pos-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-app);
+}
+
+/* Main Dual Pane Container */
+.pos-main-container {
+  display: flex;
+  flex: 1;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  position: relative;
+}
+
+.pos-catalog-pane {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pos-cart-pane {
+  width: 380px;
+  min-width: 340px;
+  max-width: 420px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  transition: transform 0.35s var(--ease-spring);
+}
+
+/* Mobile Bottom Cart Dock Bar */
+.pos-mobile-cart-bar {
+  display: none;
+}
+
+/* 
+ * Claude Warm Editorial Double-Bezel Card Architecture
+ */
+.pos-product-card-shell {
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 2.5px;
+  transition: all 0.22s var(--ease-spring);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-product-card-shell:hover {
+  border-color: var(--accent-terracotta);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+}
+
+.pos-product-card-shell:active {
+  transform: scale(0.985);
+}
+
+.pos-product-card-inner {
+  background: var(--bg-surface-card);
+  border-radius: calc(var(--radius-lg) - 2.5px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+/* Pill Stepper Capsule */
+.pos-stepper-capsule {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface-subtle);
+  padding: 2px;
+}
+
+.pos-stepper-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.pos-stepper-btn:hover {
+  background: var(--bg-surface);
+}
+
+.pos-stepper-btn:active {
+  transform: scale(0.9);
+}
+
+/* Pill Primary Buttons */
+.pos-btn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-spring);
+}
+
+.pos-btn-pill-primary {
+  background-color: var(--accent-primary);
+  color: var(--accent-primary-text);
+  box-shadow: 0 2px 8px rgba(217, 119, 87, 0.25);
+}
+
+.pos-btn-pill-primary:hover {
+  background-color: var(--accent-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(217, 119, 87, 0.35);
+}
+
+.pos-btn-pill-primary:active {
+  transform: scale(0.98);
+}
+
+/* Global spin animation — shared by all components */
+@keyframes pos-spin {
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Media Queries */
+
+/* Large tablets (1024–1280px): standard dual-pane, slightly narrower cart */
+@media (max-width: 1280px) {
+  .pos-cart-pane {
+    width: 360px;
+    min-width: 340px;
+  }
+}
+
+/* Smaller laptops / large tablets (769–1023px): collapse cart into a narrower pane */
+@media (max-width: 1023px) {
+  .pos-cart-pane {
+    width: 300px;
+    min-width: 280px;
+    max-width: 300px;
+  }
+}
+
+/* Medium tablets (600–768px): stack layout — catalog fills screen, cart is a slide-up sheet */
+@media (max-width: 768px) {
+  .pos-main-container {
+    height: calc(100vh - 60px - 66px);
+  }
+
+  .pos-cart-pane {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    z-index: 900;
+    border-left: none;
+    transform: translateY(100%);
+    transition: transform 0.35s var(--ease-spring);
+  }
+
+  .pos-cart-pane.mobile-open {
+    transform: translateY(0);
+  }
+
+  .pos-mobile-cart-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 66px;
+    background-color: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    padding: 10px 18px;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 800;
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Product grid: 2 columns on medium tablets */
+  .pos-catalog-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Phones (< 480px): single column catalog */
+@media (max-width: 480px) {
+  .pos-catalog-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
