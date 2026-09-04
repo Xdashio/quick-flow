@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
-
 interface Props {
   categoryId: string;
   categoryName: string;
@@ -22,7 +20,7 @@ export function DeleteCategoryButton({ categoryId, categoryName, productCount, c
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${BACKEND}/api/categories/${categoryId}`, {
+      const res = await fetch(`/api/proxy/categories/${categoryId}`, {
         method: 'DELETE',
         credentials: 'include',
       });

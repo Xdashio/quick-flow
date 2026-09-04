@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Select } from './Select';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
-
 interface Props {
   productId: string;
   categoryId: string | null;
@@ -26,7 +24,7 @@ export function ProductCategoryPicker({ productId, categoryId, categories }: Pro
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${BACKEND}/api/products/${productId}`, {
+      const res = await fetch(`/api/proxy/products/${productId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

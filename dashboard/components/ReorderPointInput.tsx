@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
-
 interface Props {
   productId: string;
   reorderPoint: number | null;
@@ -27,7 +25,7 @@ export function ReorderPointInput({ productId, reorderPoint }: Props) {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${BACKEND}/api/products/${productId}`, {
+      const res = await fetch(`/api/proxy/products/${productId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

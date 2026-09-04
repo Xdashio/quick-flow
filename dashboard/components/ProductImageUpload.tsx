@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
 const ACCEPTED_EXT = /\.(jpg|jpeg|png|webp|gif|avif)$/i;
 
 interface Props {
@@ -37,7 +36,7 @@ export function ProductImageUpload({ productId, productName, imageUrl }: Props) 
     try {
       // 1. Ask the backend for a pre-signed R2 upload URL
       const presignRes = await fetch(
-        `${BACKEND}/api/products/${productId}/image/presign`,
+        `/api/proxy/products/${productId}/image/presign`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -65,7 +64,7 @@ export function ProductImageUpload({ productId, productName, imageUrl }: Props) 
       }
 
       // 3. Persist the new imageKey on the product
-      const patchRes = await fetch(`${BACKEND}/api/products/${productId}`, {
+      const patchRes = await fetch(`/api/proxy/products/${productId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -91,7 +90,7 @@ export function ProductImageUpload({ productId, productName, imageUrl }: Props) 
     setError('');
     setRemoving(true);
     try {
-      const res = await fetch(`${BACKEND}/api/products/${productId}/image`, {
+      const res = await fetch(`/api/proxy/products/${productId}/image`, {
         method: 'DELETE',
         credentials: 'include',
       });

@@ -4,8 +4,6 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Select } from './Select';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
-
 interface ProductOption {
   id: string;
   name: string;
@@ -66,7 +64,7 @@ export function StockMovementForm({ products, locations, initialProductId }: Pro
     setLoading(true);
     try {
       const signedQty = ADDS_STOCK.has(reason) ? qty : -qty;
-      const res = await fetch(`${BACKEND}/api/inventory/movements`, {
+      const res = await fetch(`/api/proxy/inventory/movements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

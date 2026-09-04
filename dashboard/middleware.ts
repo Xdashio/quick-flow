@@ -14,14 +14,6 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET ?? 'dev-jwt-secret-change-in-production',
 );
 
-// TEMP DEBUG — remove after confirming secret parity with backend.
-{
-  const secret = process.env.JWT_SECRET ?? 'dev-jwt-secret-change-in-production';
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
-  const hex = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
-  console.log(`[debug] JWT_SECRET fingerprint: ${hex} (length ${secret.length})`);
-}
-
 const PUBLIC_PATHS = ['/login', '/api/auth'];
 
 export async function middleware(request: NextRequest) {

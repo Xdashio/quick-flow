@@ -10,8 +10,6 @@ const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
 ];
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
-
 export function CreateUserForm() {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -28,7 +26,7 @@ export function CreateUserForm() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${BACKEND}/api/users`, {
+      const res = await fetch(`/api/proxy/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -4,8 +4,6 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Select } from './Select';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
-
 interface CategoryOption {
   id: string;
   name: string;
@@ -35,7 +33,7 @@ export function CreateCategoryForm({ categories }: Props) {
     setLoading(true);
 
     try {
-      const res = await fetch(`${BACKEND}/api/categories`, {
+      const res = await fetch(`/api/proxy/categories`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
