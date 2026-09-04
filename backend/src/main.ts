@@ -1,12 +1,26 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { createHash } from 'crypto';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
-  app.enableCors();
+
+  // Browsers reject `Access-Control-Allow-Origin: *` whenever a request is made
+  // with credentials (cookies / Authorization header via fetch's credentials: 'include').
+  // So origin must be an explicit allow-list, not a wildcard, and credentials must be enabled.
+  const allowedOrigins = (
+    process.env.CORS_ORIGIN || 'http://localhost:3001,http://localhost:3000'
+  )
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -18,12 +32,5 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`Backend listening on port ${port} on 0.0.0.0`);
-
-  // TEMP DEBUG — remove after confirming secret parity with dashboard.
-  // Logs a short hash, never the secret itself.
-  const secret = process.env.JWT_SECRET ?? 'dev-jwt-secret-change-in-production';
-  const secretHash = createHash('sha256').update(secret).digest('hex').slice(0, 12);
-  // eslint-disable-next-line no-console
-  console.log(`[debug] JWT_SECRET fingerprint: ${secretHash} (length ${secret.length})`);
 }
 bootstrap();
