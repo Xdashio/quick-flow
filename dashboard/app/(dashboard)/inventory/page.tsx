@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { apiFetch, formatDate, nairobiToday } from '../../../lib/api';
+import { apiFetch, formatDate } from '../../../lib/api';
+import { StockMovementForm } from '../../../components/StockMovementForm';
 
 export const metadata: Metadata = { title: 'Inventory' };
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,20 @@ interface Product {
   active: boolean;
 }
 
+interface LowStockItem {
+  productId: string;
+  sku: string;
+  name: string;
+  unitType: string;
+  reorderPoint: number;
+  currentStock: number;
+}
+
+interface Location {
+  id: string;
+  name: string;
+}
+
 function reasonBadge(reason: string) {
   const map: Record<string, string> = {
     sale: 'badge-green',
@@ -36,9 +51,11 @@ function reasonBadge(reason: string) {
 }
 
 export default async function InventoryPage() {
-  const [movements, products] = await Promise.all([
+  const [movements, products, lowStock, locations] = await Promise.all([
     apiFetch<Movement[]>('/inventory/movements').catch(() => []),
     apiFetch<Product[]>('/products').catch(() => []),
+    apiFetch<LowStockItem[]>('/inventory/low-stock').catch(() => []),
+    apiFetch<Location[]>('/locations').catch(() => []),
   ]);
 
   const productMap = new Map(products.map((p) => [p.id, p]));
@@ -50,6 +67,61 @@ export default async function InventoryPage() {
         <span className="topbar-badge">{movements.length} recent movements</span>
       </div>
       <div className="page-content">
+
+        <div className="grid-2">
+          {/* ── Low Stock Alerts ──────────────────────────────── */}
+          <div className="section" style={{ gridColumn: '1 / -1' }}>
+            <div className="section-header">
+              <h3>Low Stock</h3>
+              <span className={`topbar-badge${lowStock.length > 0 ? ' amber' : ''}`}>
+                {lowStock.length} at or below reorder point
+              </span>
+            </div>
+            <div className="table-wrap">
+              {lowStock.length === 0 ? (
+                <div className="empty">
+                  <p>
+                    Nothing is low right now. Set a &ldquo;Reorder at&rdquo; value on a product in the
+                    Products page to start tracking it here.
+                  </p>
+                </div>
+              ) : (
+                <table id="low-stock-table">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Name</th>
+                      <th className="text-right">Current Stock</th>
+                      <th className="text-right">Reorder At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lowStock.map((item) => (
+                      <tr key={item.productId} id={`low-stock-${item.productId}`}>
+                        <td className="mono">{item.sku}</td>
+                        <td className="font-bold">{item.name}</td>
+                        <td className="text-right mono" style={{ color: 'var(--accent-rose)' }}>
+                          {item.currentStock} {item.unitType}
+                        </td>
+                        <td className="text-right mono td-muted">{item.reorderPoint}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* ── Record Stock Movement ─────────────────────────── */}
+          <div className="section" style={{ gridColumn: '1 / -1' }}>
+            <div className="section-header">
+              <h3>Record Stock Movement</h3>
+            </div>
+            <div className="section-body">
+              <StockMovementForm products={products} locations={locations} />
+            </div>
+          </div>
+        </div>
 
         {/* ── Stock Overview ────────────────────────────────── */}
         <div className="section">

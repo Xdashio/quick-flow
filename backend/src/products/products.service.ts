@@ -38,6 +38,7 @@ export class ProductsService {
           categoryId: dto.categoryId ?? null,
           active: dto.active ?? true,
           imageKey: dto.imageKey ?? null,
+          reorderPoint: dto.reorderPoint ?? null,
         },
         include: { taxCategory: true, category: true },
       });
@@ -104,6 +105,7 @@ export class ProductsService {
           categoryId: dto.categoryId,
           active: dto.active,
           imageKey: dto.imageKey,
+          reorderPoint: dto.reorderPoint,
         },
         include: { taxCategory: true, category: true },
       });

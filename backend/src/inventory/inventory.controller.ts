@@ -38,4 +38,10 @@ export class InventoryController {
   ) {
     return this.service.listMovements(productId, locationId);
   }
+
+  /** Products with a reorder point set whose total stock has fallen at or below it. */
+  @Get('low-stock')
+  lowStock() {
+    return this.service.getLowStock();
+  }
 }

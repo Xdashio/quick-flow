@@ -65,6 +65,15 @@ const NAV: { section: string; items: NavItem[] }[] = [
         ),
       },
       {
+        href: '/categories',
+        label: 'Categories',
+        icon: () => (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />
+          </svg>
+        ),
+      },
+      {
         href: '/inventory',
         label: 'Inventory',
         icon: () => (

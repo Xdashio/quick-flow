@@ -61,4 +61,14 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(512)
   imageKey?: string;
+
+  /**
+   * Reorder threshold — when total stock across locations falls at or
+   * below this, the product appears on GET /inventory/low-stock.
+   * Omit to leave the product untracked for low-stock alerts.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  reorderPoint?: number;
 }

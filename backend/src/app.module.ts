@@ -15,6 +15,8 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
 import { ImagesModule } from './images/images.module';
+import { CategoriesModule } from './categories/categories.module';
+import { LocationsModule } from './locations/locations.module';
 
 @Module({
   imports: [
@@ -25,6 +27,7 @@ import { ImagesModule } from './images/images.module';
     ReportsModule,
     ProductsModule,
     TaxCategoriesModule,
+    CategoriesModule,
     TransactionsModule,
     InventoryModule,
     PaymentsModule,
@@ -32,6 +35,7 @@ import { ImagesModule } from './images/images.module';
     HardwareModule,
     CheckoutModule,
     ImagesModule,
+    LocationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

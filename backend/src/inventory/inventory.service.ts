@@ -104,6 +104,41 @@ export class InventoryService {
     }
   }
 
+  /**
+   * Products with a reorder point set whose total stock (summed across all
+   * locations, from the movement ledger directly so it's always current)
+   * has fallen at or below that threshold. Sorted lowest stock first.
+   */
+  async getLowStock() {
+    const trackedProducts = await this.prisma.product.findMany({
+      where: { reorderPoint: { not: null }, active: true },
+      select: { id: true, sku: true, name: true, unitType: true, reorderPoint: true },
+    });
+    if (trackedProducts.length === 0) return [];
+
+    const productIds = trackedProducts.map((p) => p.id);
+    const totals = await this.prisma.inventoryMovement.groupBy({
+      by: ['productId'],
+      where: { productId: { in: productIds } },
+      _sum: { quantityDelta: true },
+    });
+    const totalsMap = new Map(
+      totals.map((t) => [t.productId, Number(t._sum.quantityDelta ?? 0)]),
+    );
+
+    return trackedProducts
+      .map((p) => ({
+        productId: p.id,
+        sku: p.sku,
+        name: p.name,
+        unitType: p.unitType,
+        reorderPoint: p.reorderPoint as number,
+        currentStock: totalsMap.get(p.id) ?? 0,
+      }))
+      .filter((p) => p.currentStock <= p.reorderPoint)
+      .sort((a, b) => a.currentStock - b.currentStock);
+  }
+
   async listMovements(productId?: string, locationId?: string) {
     const where: any = {};
     if (productId) where.productId = productId;

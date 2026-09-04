@@ -28,6 +28,11 @@ function initDb() {
       name TEXT NOT NULL,
       rate_bp INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      parent_id TEXT
+    );
     CREATE TABLE IF NOT EXISTS products (
       id TEXT PRIMARY KEY,
       sku TEXT UNIQUE NOT NULL,
@@ -84,9 +89,11 @@ function setupIpc() {
     const db = getDb();
     try {
       let sql = `
-        SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+        SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp,
+               c.name as category_name
         FROM products p
         LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+        LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.active = 1
       `;
       const params = [];

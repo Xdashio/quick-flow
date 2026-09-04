@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { apiFetch, formatKes } from '../../../lib/api';
 import { ProductImageUpload } from '../../../components/ProductImageUpload';
+import { ProductCategoryPicker } from '../../../components/ProductCategoryPicker';
+import { ReorderPointInput } from '../../../components/ReorderPointInput';
 
 export const metadata: Metadata = { title: 'Products' };
 export const dynamic = 'force-dynamic';
@@ -15,10 +17,21 @@ interface Product {
   active: boolean;
   imageKey: string | null;
   imageUrl: string | null;
+  categoryId: string | null;
+  reorderPoint: number | null;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  parentId: string | null;
 }
 
 export default async function ProductsPage() {
-  const products = await apiFetch<Product[]>('/products').catch(() => [] as Product[]);
+  const [products, categories] = await Promise.all([
+    apiFetch<Product[]>('/products').catch(() => [] as Product[]),
+    apiFetch<Category[]>('/categories').catch(() => [] as Category[]),
+  ]);
 
   return (
     <>
@@ -47,6 +60,8 @@ export default async function ProductsPage() {
                     <th>Name</th>
                     <th>Unit</th>
                     <th className="text-right">Price</th>
+                    <th>Category</th>
+                    <th>Reorder at</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -64,6 +79,16 @@ export default async function ProductsPage() {
                       <td className="font-bold">{p.name}</td>
                       <td className="td-muted">{p.unitType}</td>
                       <td className="text-right mono">{formatKes(p.priceCents)}</td>
+                      <td>
+                        <ProductCategoryPicker
+                          productId={p.id}
+                          categoryId={p.categoryId}
+                          categories={categories}
+                        />
+                      </td>
+                      <td>
+                        <ReorderPointInput productId={p.id} reorderPoint={p.reorderPoint} />
+                      </td>
                       <td>
                         <span className={`badge ${p.active ? 'badge-green' : 'badge-gray'}`}>
                           {p.active ? 'Active' : 'Inactive'}

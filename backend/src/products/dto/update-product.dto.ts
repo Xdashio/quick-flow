@@ -47,9 +47,10 @@ export class UpdateProductDto {
   @IsUUID()
   taxCategoryId?: string;
 
+  /** Pass a category id to assign, null to uncategorize, or omit to leave unchanged. */
   @IsOptional()
   @IsUUID()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -63,4 +64,13 @@ export class UpdateProductDto {
   @IsString()
   @MaxLength(512)
   imageKey?: string | null;
+
+  /**
+   * Reorder threshold — pass a number to set/change it, null to stop
+   * tracking this product for low-stock alerts, or omit to leave unchanged.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  reorderPoint?: number | null;
 }
