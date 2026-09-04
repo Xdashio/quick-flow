@@ -3,20 +3,79 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
-const NAV = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: (active: boolean) => React.ReactNode;
+}
+
+const NAV: { section: string; items: NavItem[] }[] = [
   {
-    section: 'Analytics',
+    section: 'Analytics & Audits',
     items: [
-      { href: '/overview', label: 'Overview', icon: '📊' },
-      { href: '/payments', label: 'Payments & M-Pesa', icon: '💳' },
-      { href: '/drawer', label: 'Drawer Reconciliation', icon: '🗄️' },
+      {
+        href: '/overview',
+        label: 'Overview',
+        icon: () => (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="7" height="9" x="3" y="3" rx="1" />
+            <rect width="7" height="5" x="14" y="3" rx="1" />
+            <rect width="7" height="9" x="14" y="12" rx="1" />
+            <rect width="7" height="5" x="3" y="16" rx="1" />
+          </svg>
+        ),
+      },
+      {
+        href: '/payments',
+        label: 'Payments & M-Pesa',
+        icon: () => (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="20" height="14" x="2" y="5" rx="2" />
+            <line x1="2" x2="22" y1="10" y2="10" />
+          </svg>
+        ),
+      },
+      {
+        href: '/drawer',
+        label: 'Drawer Audit',
+        icon: () => (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="20" height="8" x="2" y="4" rx="2" />
+            <rect width="20" height="8" x="2" y="12" rx="2" />
+            <line x1="12" x2="12.01" y1="8" y2="8" />
+            <line x1="12" x2="12.01" y1="16" y2="16" />
+          </svg>
+        ),
+      },
     ],
   },
   {
-    section: 'Operations',
+    section: 'Store Operations',
     items: [
-      { href: '/inventory', label: 'Inventory', icon: '📦' },
-      { href: '/users', label: 'Users', icon: '👤' },
+      {
+        href: '/inventory',
+        label: 'Inventory',
+        icon: () => (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m7.5 4.27 9 5.15" />
+            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+            <path d="m3.3 7 8.7 5 8.7-5" />
+            <path d="M12 22V12" />
+          </svg>
+        ),
+      },
+      {
+        href: '/users',
+        label: 'Staff Management',
+        icon: () => (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        ),
+      },
     ],
   },
 ];
@@ -42,46 +101,37 @@ export function SidebarNav({ user }: Props) {
           <span className="dot" />
           QuickFlow POS
         </h1>
-        <p>Manager Dashboard</p>
+        <p>Management Console</p>
       </div>
 
       <nav className="sidebar-nav">
         {NAV.map((group) => (
           <div key={group.section} className="sidebar-section">
             <div className="sidebar-section-label">{group.section}</div>
-            {group.items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`sidebar-link ${pathname.startsWith(item.href) ? 'active' : ''}`}
-                id={`nav-${item.label.toLowerCase().replace(/[^a-z]/g, '-')}`}
-              >
-                <span className="icon">{item.icon}</span>
-                {item.label}
-              </Link>
-            ))}
+            {group.items.map((item) => {
+              const active = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`sidebar-link ${active ? 'active' : ''}`}
+                  id={`nav-${item.label.toLowerCase().replace(/[^a-z]/g, '-')}`}
+                >
+                  <span className="icon">{item.icon(active)}</span>
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
         ))}
       </nav>
 
       <div className="sidebar-footer">
-        {user && (
-          <>
-            <strong>{user.name}</strong>
-            <span
-              style={{
-                display: 'inline-block',
-                marginTop: 2,
-                fontSize: 11,
-                textTransform: 'capitalize',
-                color: 'rgba(255,255,255,0.3)',
-              }}
-            >
-              {user.role}
-            </span>
-          </>
-        )}
-        <button className="logout-btn" id="logout-btn" onClick={handleLogout}>
+        <div className="sidebar-user-meta">
+          <span className="sidebar-user">{user?.name ?? 'Manager'}</span>
+          <span className="sidebar-role">{user?.role ?? 'admin'}</span>
+        </div>
+        <button className="sidebar-logout" id="logout-btn" onClick={handleLogout}>
           Sign out
         </button>
       </div>
