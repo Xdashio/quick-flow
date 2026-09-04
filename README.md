@@ -77,3 +77,27 @@ See `pos-system-blueprint.md` § Suggested Build Sequence for phases 1-12.
 ## License
 
 UNLICENSED (private)
+
+---
+
+## Phase 1 — Database Schema & Backend API Skeleton (verified 2026-09-04)
+
+Implemented full blueprint schema as Prisma entities + migrations + real NestJS REST.
+
+**Endpoints (all hit real PostgreSQL via Prisma, no mocks):**
+
+| Method | Path | Description | Source |
+|---|---|---|---|
+| CRUD | `POST/GET/PATCH/DELETE /api/products` | SKU unique, barcode indexed, price_cents int, weighted | `backend/src/products/products.service.ts` |
+| Scan | `GET /api/products/barcode/:barcode` | Grocery scan lookup | `backend/src/products/products.controller.ts:18` |
+| CRUD | `POST/GET/PATCH/DELETE /api/tax-categories` | name + rate_bp (basis points) | `backend/src/tax-categories/` |
+| Create | `POST /api/transactions` | client-UUID idempotent, DRAFT creation with lineItems frozen | `backend/src/transactions/transactions.service.ts` |
+| Patch | `PATCH /api/transactions/:id` | Guarded state machine — rejects illegal (e.g. COMPLETED→DRAFT 400) | `backend/src/transactions/transactions.service.ts:19` |
+| Ledger | `POST /api/inventory/movements` | append-only, `quantityDelta NUMERIC(10,3)`, refresh matview | `backend/src/inventory/inventory.service.ts:35` |
+| Stock | `GET /api/inventory/current/:productId` | reads `current_inventory` matview (derived SUM), not hardcoded | `backend/src/inventory/inventory.service.ts:55` |
+
+**State machine:** `DRAFT→IN_PROGRESS→AWAITING_PAYMENT→PAYMENT_CAPTURED→COMPLETED` with `PAYMENT_FAILED→VOIDED`, `COMPLETED→REFUND_REQUESTED→REFUNDED`, `COMPLETED→VOID_REQUESTED→VOIDED` — plus cash shortcuts (`IN_PROGRESS→COMPLETED`) — enforced in `assertTransition`.
+
+**Materialized view:** `backend/prisma/migrations/20250904_current_inventory_view/migration.sql` — `REFRESH MATERIALIZED VIEW CONCURRENTLY` after each movement.
+
+**Verification:** see `docs/PHASE1_VERIFICATION.md` (curl + psql transcripts). Example: `POST /api/products` → `GET /api/products/barcode/012345678905` → `POST /api/transactions` → `PATCH DRAFT→IN_PROGRESS→COMPLETED` → illegal `COMPLETED→DRAFT` 400 → `psql SELECT * FROM current_inventory` shows `98.000` (100 receiving −2 sale).
