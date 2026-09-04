@@ -1,25 +1,24 @@
-// Electron main process — creates real SQLite file on disk (Phase 0 verification)
-const { app, BrowserWindow } = require("electron");
+// Electron main process — creates real SQLite file on disk & runs background SyncService
+const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const Database = require("better-sqlite3");
+const SyncService = require("./sync-service.cjs");
 
-let Database;
-try {
-  Database = require("better-sqlite3");
-} catch (e) {
-  console.warn("[electron] better-sqlite3 not available yet (run npm install):", e.message);
+const dbPath = path.resolve(__dirname, "../data/pos.db");
+let syncService = null;
+let mainWindow = null;
+
+function getDb() {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+  return db;
 }
 
 function initDb() {
-  if (!Database) {
-    console.warn("[electron] skipping DB init — better-sqlite3 missing");
-    return null;
-  }
-  const dbPath = path.join(__dirname, "../data/pos.db");
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath);
+  const db = getDb();
   db.exec(`
-    PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS tax_categories (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -41,6 +40,9 @@ function initDb() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+
     CREATE TABLE IF NOT EXISTS pending_transactions (
       id TEXT PRIMARY KEY,
       payload TEXT NOT NULL,
@@ -53,47 +55,161 @@ function initDb() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
-  const seed = db.prepare(`INSERT OR IGNORE INTO tax_categories (id, name, rate_bp) VALUES (?, ?, ?)`);
-  seed.run("tax-standard", "standard", 1600);
-  seed.run("tax-zero", "zero_rated", 0);
-  seed.run("tax-exempt", "exempt", 0);
-  const tables = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`).all();
-  console.log(`[electron] SQLite ready at ${dbPath}`);
-  console.log(`[electron] tables:`, tables.map(t => t.name).join(", "));
   db.close();
-  return dbPath;
+  console.log(`[electron] SQLite initialized at ${dbPath}`);
+}
+
+function setupIpc() {
+  // Search products in local SQLite cache
+  ipcMain.handle("db:search-products", async (_event, { query, categoryId }) => {
+    const db = getDb();
+    try {
+      let sql = `
+        SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+        FROM products p
+        LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+        WHERE p.active = 1
+      `;
+      const params = [];
+
+      if (query && query.trim()) {
+        const q = `%${query.trim()}%`;
+        const exact = query.trim();
+        sql += ` AND (p.name LIKE ? OR p.sku LIKE ? OR p.barcode = ?)`;
+        params.push(q, q, exact);
+      }
+
+      if (categoryId) {
+        sql += ` AND p.category_id = ?`;
+        params.push(categoryId);
+      }
+
+      sql += ` ORDER BY p.name ASC LIMIT 100`;
+
+      return db.prepare(sql).all(...params);
+    } finally {
+      db.close();
+    }
+  });
+
+  // Lookup product by exact barcode
+  ipcMain.handle("db:get-product-by-barcode", async (_event, barcode) => {
+    const db = getDb();
+    try {
+      return db
+        .prepare(
+          `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+           FROM products p
+           LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+           WHERE p.active = 1 AND p.barcode = ?
+           LIMIT 1`
+        )
+        .get(barcode) || null;
+    } finally {
+      db.close();
+    }
+  });
+
+  // Get all active products from SQLite cache
+  ipcMain.handle("db:get-all-products", async () => {
+    const db = getDb();
+    try {
+      return db
+        .prepare(
+          `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+           FROM products p
+           LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+           WHERE p.active = 1
+           ORDER BY p.name ASC`
+        )
+        .all();
+    } finally {
+      db.close();
+    }
+  });
+
+  // Get tax categories from SQLite cache
+  ipcMain.handle("db:get-tax-categories", async () => {
+    const db = getDb();
+    try {
+      return db
+        .prepare(`SELECT * FROM tax_categories ORDER BY rate_bp DESC`)
+        .all();
+    } finally {
+      db.close();
+    }
+  });
+
+  // Get sync telemetry
+  ipcMain.handle("sync:get-status", async () => {
+    if (!syncService) return { status: "idle", productsCount: 0, taxCategoriesCount: 0 };
+    return syncService.getStatus();
+  });
+
+  // Trigger manual sync
+  ipcMain.handle("sync:trigger", async () => {
+    if (!syncService) return { status: "error", errorMessage: "SyncService not initialized" };
+    return await syncService.sync();
+  });
 }
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 850,
+    minWidth: 1024,
+    minHeight: 700,
+    backgroundColor: "#09090b",
+    titleBarStyle: "hiddenInset",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
-  // In dev, Vite serves at 5173; in prod, load dist/renderer/index.html
+
   const devUrl = "http://localhost:5173";
-  const prodFile = path.join(__dirname, "../dist/renderer/index.html");
+  const prodFile = path.join(__dirname, "../dist/index.html");
+
   if (fs.existsSync(prodFile)) {
-    win.loadFile(prodFile);
+    mainWindow.loadFile(prodFile);
   } else {
-    win.loadURL(devUrl).catch(() => {
+    mainWindow.loadURL(devUrl).catch(() => {
       console.log("[electron] dev server not running — run `npm run dev` in register");
-      win.loadURL(`data:text/html,<h1>POS Register — Phase 0</h1><p>Run <code>npm run dev</code> in register for Vite dev server at ${devUrl}</p>`);
+      mainWindow.loadURL(
+        `data:text/html,<h1>POS Register</h1><p>Vite dev server at ${devUrl} is waiting to start...</p>`
+      );
     });
   }
 }
 
 app.whenReady().then(() => {
   initDb();
+  setupIpc();
+
+  // Initialize and start background sync service
+  syncService = new SyncService({
+    dbPath,
+    apiUrl: process.env.POS_API_URL || "http://localhost:3000/api",
+    intervalMs: 30000,
+  });
+
+  syncService.onSync((status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("sync:update", status);
+    }
+  });
+
+  syncService.start();
+
   createWindow();
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on("window-all-closed", () => {
+  if (syncService) syncService.stop();
   if (process.platform !== "darwin") app.quit();
 });
