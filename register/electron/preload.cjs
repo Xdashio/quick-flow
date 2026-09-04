@@ -1,4 +1,4 @@
-// Preload script: Exposes secure IPC bridge for local SQLite queries and Sync
+// Preload script: Exposes secure IPC bridge for local SQLite queries and Sync + Checkout
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("posApi", {
@@ -22,4 +22,16 @@ contextBridge.exposeInMainWorld("posApi", {
     ipcRenderer.on("sync:update", handler);
     return () => ipcRenderer.removeListener("sync:update", handler);
   },
+
+  // Phase 4: Cash Checkout — offline-capable
+  completeCashSale: (payload) =>
+    ipcRenderer.invoke("checkout:cash", payload),
+  openDrawer: (args) =>
+    ipcRenderer.invoke("drawer:open", args),
+  getPendingCount: () =>
+    ipcRenderer.invoke("checkout:pending-count"),
+  getLastReceipt: () =>
+    ipcRenderer.invoke("printer:last-receipt"),
+  previewReceipt: (tx) =>
+    ipcRenderer.invoke("printer:preview", tx),
 });

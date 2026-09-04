@@ -4,9 +4,13 @@ const path = require("path");
 const fs = require("fs");
 const Database = require("better-sqlite3");
 const SyncService = require("./sync-service.cjs");
+const CheckoutQueue = require("./checkout-queue.cjs");
+const RegisterPrinter = require("./printer.cjs");
 
 const dbPath = path.resolve(__dirname, "../data/pos.db");
 let syncService = null;
+let checkoutQueue = null;
+let registerPrinter = null;
 let mainWindow = null;
 
 function getDb() {
@@ -149,7 +153,50 @@ function setupIpc() {
   // Trigger manual sync
   ipcMain.handle("sync:trigger", async () => {
     if (!syncService) return { status: "error", errorMessage: "SyncService not initialized" };
-    return await syncService.sync();
+    const syncResult = await syncService.sync();
+    // Also flush queued cash sales
+    if (checkoutQueue) {
+      const flush = await checkoutQueue.flushPending().catch((e) => ({ flushed: 0, failed: 1, errors: [e.message] }));
+      syncResult.pendingFlushed = flush;
+    }
+    return syncResult;
+  });
+
+  // Cash checkout — offline-capable (Phase 4 primary flow)
+  ipcMain.handle("checkout:cash", async (_event, payload) => {
+    if (!checkoutQueue) throw new Error("CheckoutQueue not initialized");
+    return checkoutQueue.completeCashSale(payload);
+  });
+
+  // Drawer events: no_sale / manager_override / change — reason-coded §5.3
+  ipcMain.handle("drawer:open", async (_event, args) => {
+    if (!checkoutQueue) throw new Error("CheckoutQueue not initialized");
+    return checkoutQueue.openDrawerNoSale(args || {});
+  });
+
+  ipcMain.handle("checkout:pending-count", async () => {
+    if (!checkoutQueue) return 0;
+    return checkoutQueue.getPendingCount();
+  });
+
+  // Virtual printer last receipt query (for UI preview)
+  ipcMain.handle("printer:last-receipt", async () => {
+    const printer = registerPrinter || checkoutQueue?.printer;
+    if (!printer) return null;
+    const last = printer.getLast();
+    if (!last.bytes) return null;
+    return {
+      path: last.path,
+      hex: last.bytes.toString("hex"),
+      text: printer.parseEscPosToText(last.bytes),
+      bytesLength: last.bytes.length,
+    };
+  });
+
+  // Direct receipt preview from payload (debug)
+  ipcMain.handle("printer:preview", async (_event, tx) => {
+    const p = registerPrinter || checkoutQueue?.printer || new RegisterPrinter({});
+    return p.printReceipt(tx);
   });
 }
 
@@ -185,6 +232,18 @@ function createWindow() {
 
 app.whenReady().then(() => {
   initDb();
+  // Initialize printer & checkout queue before IPC wiring
+  registerPrinter = new RegisterPrinter({
+    virtualDir: path.join(__dirname, "../data/virtual-printer"),
+    printerHost: process.env.POS_PRINTER_HOST,
+    printerPort: process.env.POS_PRINTER_PORT,
+  });
+  checkoutQueue = new CheckoutQueue({
+    dbPath,
+    apiUrl: process.env.POS_API_URL || "http://localhost:3000/api",
+    virtualDir: path.join(__dirname, "../data/virtual-printer"),
+  });
+
   setupIpc();
 
   // Initialize and start background sync service
@@ -192,6 +251,7 @@ app.whenReady().then(() => {
     dbPath,
     apiUrl: process.env.POS_API_URL || "http://localhost:3000/api",
     intervalMs: 30000,
+    checkoutQueue, // inject for flush on each sync tick
   });
 
   syncService.onSync((status) => {

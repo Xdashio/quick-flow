@@ -9,6 +9,7 @@ class SyncService {
     this.dbPath = options.dbPath || path.resolve(__dirname, "../data/pos.db");
     this.apiUrl = options.apiUrl || process.env.POS_API_URL || "http://localhost:3000/api";
     this.intervalMs = options.intervalMs || 30000;
+    this.checkoutQueue = options.checkoutQueue || null;
     this.timer = null;
     this.isSyncing = false;
     this.listeners = [];
@@ -165,6 +166,20 @@ class SyncService {
         `[SyncService] Sync complete. Products: ${counts.productsCount}, Tax categories: ${counts.taxCategoriesCount}`
       );
 
+      // Flush queued cash sales (offline-capable per §2.4)
+      let pendingFlush = null;
+      if (this.checkoutQueue) {
+        try {
+          pendingFlush = await this.checkoutQueue.flushPending();
+          if (pendingFlush.flushed > 0) {
+            console.log(`[SyncService] Flushed queued transactions: ${JSON.stringify(pendingFlush)}`);
+          }
+        } catch (e) {
+          console.warn(`[SyncService] Queue flush error: ${e.message}`);
+        }
+      }
+
+      const pendingCount = this.checkoutQueue ? this.checkoutQueue.getPendingCount() : 0;
       const status = {
         success: true,
         isOnline: true,
@@ -172,6 +187,8 @@ class SyncService {
         status: "synced",
         productsCount: counts.productsCount,
         taxCategoriesCount: counts.taxCategoriesCount,
+        pendingCount,
+        pendingFlush,
         errorMessage: null,
       };
 
@@ -231,6 +248,7 @@ class SyncService {
       }
 
       const counts = this.getCounts(db);
+      const pendingCount = this.checkoutQueue ? (() => { try { return this.checkoutQueue.getPendingCount(); } catch { return 0; } })() : 0;
 
       return {
         success: !currentError && metaMap.last_sync_status !== "error",
@@ -245,6 +263,7 @@ class SyncService {
           : "pending",
         productsCount: counts.productsCount,
         taxCategoriesCount: counts.taxCategoriesCount,
+        pendingCount,
         errorMessage: currentError || metaMap.error_message || null,
       };
     } finally {
