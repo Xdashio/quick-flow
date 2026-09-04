@@ -544,6 +544,7 @@ tr:hover td {
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 600;
+  color: var(--text-primary);
   transition: all 0.15s ease;
 }
 .btn-primary {
@@ -611,10 +612,24 @@ input::placeholder, textarea::placeholder {
 }
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23828076' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23828076' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 32px;
+  border-radius: var(--radius-sm);
+}
+select:hover {
+  border-color: var(--border-focus);
+}
+select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d97757' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+select option {
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 
 /* ─── Clean Disciplined Auth / Login Layout (Matching POS Register) ───────── */
@@ -765,4 +780,71 @@ select {
   color: var(--text-muted);
   line-height: 1.4;
   margin-top: 4px;
+}
+
+/* ─── Deactivate Reactivate Modal ─────────────────────────────────────────── */
+.deactivate-modal {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+.deactivate-modal.open {
+  display: flex;
+}
+.deactivate-modal-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: center;
+  position: relative;
+  animation: modalIn 0.3s ease-out;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.deactivate-modal-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.deactivate-modal-content p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 8px 0;
+}
+.deactivate-modal-content p:first-child {
+  margin-top: 0;
+  color: var(--text-primary);
+}
+.deactivate-modal-content .dim-warning {
+  color: var(--accent-rose);
+  margin: 12px 0;
+  font-weight: 500;
+}
+.deactivate-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+.deactivate-modal-actions .btn {
+  flex: 1;
+}
+
+/* Override when open */
+.deactivate-modal.open .deactivate-modal-content {
+  display: block;
 }

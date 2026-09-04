@@ -113,7 +113,6 @@ export function SidebarNav({ user }: Props) {
     <aside className="sidebar">
       <div className="sidebar-logo">
         <h1>
-          <span className="dot" />
           QuickFlow POS
         </h1>
         <p>Management Console</p>

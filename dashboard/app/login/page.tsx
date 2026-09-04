@@ -12,7 +12,6 @@ export default function LoginPage() {
         <div className="auth-card-inner">
           <header className="auth-header">
             <div className="auth-brand-badge">
-              <span className="auth-badge-dot" />
               <span>MANAGER ACCESS</span>
             </div>
             <h1 className="auth-title">QuickFlow POS</h1>

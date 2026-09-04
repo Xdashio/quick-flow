@@ -75,6 +75,7 @@ export default async function UsersPage() {
                             userId={u.id}
                             userName={u.name}
                             isActive={u.active}
+                            role={u.role}
                           />
                         </td>
                       </tr>
