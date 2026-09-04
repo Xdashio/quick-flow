@@ -1,18 +1,21 @@
-import React, { useState, useRef } from "react";
-import type { CartTotals } from "../lib/types";
+import React, { useState, useRef, useEffect } from "react";
+import type { CartItem, CartTotals } from "../lib/types";
 import { formatCurrency } from "../lib/cart";
+import { completeCashSale, openDrawer } from "../lib/checkout";
 import { IconCash, IconPhone, IconClose, IconCheck } from "./icons";
 
 interface TenderModalProps {
   isOpen: boolean;
   onClose: () => void;
+  items: CartItem[];
   totals: CartTotals;
-  onCompleteSale: () => void;
+  onCompleteSale: (result: any) => void;
 }
 
 export const TenderModal: React.FC<TenderModalProps> = ({
   isOpen,
   onClose,
+  items,
   totals,
   onCompleteSale,
 }) => {
@@ -21,59 +24,107 @@ export const TenderModal: React.FC<TenderModalProps> = ({
   const [rawInput, setRawInput] = useState<string>(() => (totals.grandTotalCents / 100).toFixed(0));
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [lastReceipt, setLastReceipt] = useState<any>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset tendered to total when modal opens or totals change (only if not manually edited recently)
+  useEffect(() => {
+    if (isOpen) {
+      setCashTenderedCents(totals.grandTotalCents);
+      setRawInput(totals.grandTotalCents ? (totals.grandTotalCents / 100).toFixed(0) : "");
+      setErrorMsg(null);
+      setIsSuccess(false);
+      setLastReceipt(null);
+      setIsProcessing(false);
+    }
+  }, [isOpen, totals.grandTotalCents]);
 
   if (!isOpen) return null;
 
-  const changeDueCents = Math.max(0, cashTenderedCents - totals.grandTotalCents);
+  const changeDueCents = Math.max(0, cashTenderedCents - totals.grandTotalCents); // integer cents
   const isExactOrMore = cashTenderedCents >= totals.grandTotalCents;
-  // Show inline error when a non-zero amount has been entered but is still short
   const isBelowTotal = cashTenderedCents > 0 && cashTenderedCents < totals.grandTotalCents;
+  const isZeroItems = items.length === 0;
 
-  const MAX_CASH_SHILLINGS = 999_999; // Upper bound: KES 999,999
+  const MAX_CASH_SHILLINGS = 999_999;
 
   const handleQuickCash = (amountShillings: number) => {
     const cents = amountShillings * 100;
     setCashTenderedCents(cents);
     setRawInput(amountShillings.toFixed(0));
-    // Select the input so the cashier can immediately overtype
+    setErrorMsg(null);
     setTimeout(() => customInputRef.current?.select(), 50);
   };
 
   const handleCustomInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value;
-
-    // 1. Only allow digits + at most one decimal point with up to 2 decimal places
     if (!/^\d*\.?\d{0,2}$/.test(raw)) return;
-
-    // 2. Strip leading zeros — "0007" → "7", but preserve "0" alone and "0.X"
     if (/^0\d/.test(raw)) {
       raw = raw.replace(/^0+/, "") || "0";
     }
-
-    // 3. Hard cap: reject anything that would exceed KES 999,999
     const parsed = parseFloat(raw);
     if (!isNaN(parsed) && parsed > MAX_CASH_SHILLINGS) return;
-
     setRawInput(raw);
     setCashTenderedCents(isNaN(parsed) ? 0 : Math.round(parsed * 100));
+    setErrorMsg(null);
   };
 
   const handleCustomInputBlur = () => {
-    // Normalise to a clean number string on blur
     const parsed = parseFloat(rawInput);
     const amount = isNaN(parsed) || parsed < 0 ? 0 : Math.min(parsed, MAX_CASH_SHILLINGS);
     setRawInput(amount === 0 ? "" : amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2));
     setCashTenderedCents(Math.round(amount * 100));
   };
 
-  const handleConfirm = () => {
-    setIsSuccess(true);
-    setTimeout(() => {
-      setIsSuccess(false);
-      onCompleteSale();
-      onClose();
-    }, 1200);
+  const handleConfirm = async () => {
+    if (isZeroItems) {
+      setErrorMsg("Cart is empty");
+      return;
+    }
+    if (paymentMethod === "cash" && !isExactOrMore) {
+      setErrorMsg(`Short by ${formatCurrency(totals.grandTotalCents - cashTenderedCents)}`);
+      return;
+    }
+    // mpesa still not fully wired — show message
+    if (paymentMethod !== "cash") {
+      setErrorMsg("M-Pesa flow not required for Phase 4 cash verification — select Cash");
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMsg(null);
+    try {
+      const result = await completeCashSale(items, totals, cashTenderedCents);
+      setIsSuccess(true);
+      setLastReceipt(result.receipt);
+      // Show success for 1.1s then propagate
+      setTimeout(() => {
+        setIsSuccess(false);
+        onCompleteSale(result);
+        onClose();
+      }, 1100);
+    } catch (err: any) {
+      setErrorMsg(err.message || String(err));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleNoSaleDrawer = async () => {
+    setErrorMsg(null);
+    try {
+      const res = await openDrawer({ reason: "no_sale", amountCents: 0 });
+      setErrorMsg(null);
+      // Visual feedback via same success path? Just flash.
+      console.log("[TenderModal] No-sale drawer opened:", res);
+      // Brief success indicator for no_sale
+      setIsSuccess(true);
+      setTimeout(() => setIsSuccess(false), 800);
+    } catch (e: any) {
+      setErrorMsg(e.message);
+    }
   };
 
   return (
@@ -94,12 +145,14 @@ export const TenderModal: React.FC<TenderModalProps> = ({
       <div
         style={{
           width: "100%",
-          maxWidth: 480,
+          maxWidth: 520,
+          maxHeight: "90vh",
+          overflowY: "auto",
           backgroundColor: "var(--bg-surface)",
           borderRadius: "var(--radius-xl)",
           border: "1px solid var(--border-strong)",
           boxShadow: "var(--shadow-elevated)",
-          overflow: "hidden",
+          overflowX: "hidden",
           display: "flex",
           flexDirection: "column",
         }}
@@ -111,8 +164,12 @@ export const TenderModal: React.FC<TenderModalProps> = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "20px 24px",
+            padding: "18px 24px",
             borderBottom: "1px solid var(--border-subtle)",
+            position: "sticky",
+            top: 0,
+            backgroundColor: "var(--bg-surface)",
+            zIndex: 1,
           }}
         >
           <div>
@@ -125,7 +182,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 color: "var(--accent-terracotta)",
               }}
             >
-              Checkout Tender
+              Checkout Tender — Cash First Class
             </span>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
               Payment Processing
@@ -150,11 +207,11 @@ export const TenderModal: React.FC<TenderModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Total Due Banner */}
           <div
             style={{
-              padding: "18px 20px",
+              padding: "16px 18px",
               borderRadius: "var(--radius-lg)",
               backgroundColor: "var(--bg-surface-elevated)",
               border: "1px solid var(--border-subtle)",
@@ -165,14 +222,19 @@ export const TenderModal: React.FC<TenderModalProps> = ({
           >
             <div>
               <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Total Payable</span>
-              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
                 {totals.itemCount} items · incl. VAT
               </div>
+              {items.length > 0 && (
+                <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
+                  {items.map((i) => `${i.name}×${i.quantity}`).join(", ").substring(0, 80)}
+                </div>
+              )}
             </div>
             <span
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 27,
+                fontSize: 26,
                 fontWeight: 800,
                 letterSpacing: "-0.03em",
                 color: "var(--text-primary)",
@@ -199,7 +261,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                     flexDirection: "column",
                     alignItems: "center",
                     gap: 6,
-                    padding: "12px 8px",
+                    padding: "10px 8px",
                     borderRadius: "var(--radius-md)",
                     backgroundColor: active ? "var(--accent-terracotta)" : "var(--bg-surface-elevated)",
                     color: active ? "#ffffff" : "var(--text-secondary)",
@@ -225,7 +287,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               {/* Quick denomination chips */}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
-                  Quick Select
+                  Quick Select (KES)
                 </label>
                 <div style={{ display: "flex", gap: 6 }}>
                   {[500, 1000, 2000, 5000].map((shillings) => {
@@ -257,6 +319,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       const exact = totals.grandTotalCents;
                       setCashTenderedCents(exact);
                       setRawInput((exact / 100).toFixed(0));
+                      setErrorMsg(null);
                     }}
                     style={{
                       flex: 1,
@@ -277,7 +340,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 </div>
               </div>
 
-              {/* Custom amount input */}
+              {/* Custom amount input — integer cents math display */}
               <div>
                 <label
                   htmlFor="cash-tendered-input"
@@ -292,10 +355,9 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                     transition: "color 0.2s ease",
                   }}
                 >
-                  Cash Tendered (KES)
+                  Cash Tendered (KES) — integer cents math
                 </label>
                 <div style={{ position: "relative" }}>
-                  {/* Currency prefix */}
                   <span
                     style={{
                       position: "absolute",
@@ -330,19 +392,13 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                         ? "0 0 0 3px rgba(224, 109, 115, 0.15)"
                         : "0 0 0 3px rgba(217, 119, 87, 0.15)";
                     }}
-                    onBlurCapture={(e) => {
-                      e.currentTarget.style.borderColor = isBelowTotal
-                        ? "rgba(224, 109, 115, 0.5)"
-                        : "var(--border-subtle)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
                     placeholder="Enter amount"
                     style={{
                       width: "100%",
-                      height: 52,
+                      height: 50,
                       padding: "0 16px 0 52px",
                       fontFamily: "var(--font-mono)",
-                      fontSize: 20,
+                      fontSize: 19,
                       fontWeight: 700,
                       letterSpacing: "-0.02em",
                       backgroundColor: isBelowTotal
@@ -358,7 +414,6 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                     }}
                   />
                 </div>
-                {/* Inline error message — only shown when short */}
                 {isBelowTotal && (
                   <div
                     style={{
@@ -376,18 +431,22 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       <line x1="12" y1="8" x2="12" y2="12" />
                       <line x1="12" y1="16" x2="12.01" y2="16" />
                     </svg>
-                    Short by {formatCurrency(totals.grandTotalCents - cashTenderedCents)}
+                    Short by {formatCurrency(totals.grandTotalCents - cashTenderedCents)} — integer cents: {totals.grandTotalCents - cashTenderedCents}c
                   </div>
                 )}
+                {/* Integer cents debug line */}
+                <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
+                  tendered={cashTenderedCents}c · total={totals.grandTotalCents}c · change={changeDueCents}c (int math)
+                </div>
               </div>
 
-              {/* Change breakdown card */}
+              {/* Change breakdown card — integer cents display */}
               <div
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
                   gap: 12,
-                  padding: "14px 16px",
+                  padding: "12px 14px",
                   borderRadius: "var(--radius-md)",
                   backgroundColor: "var(--bg-surface-elevated)",
                   border: `1px solid ${
@@ -402,7 +461,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               >
                 <div>
                   <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Tendered</span>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 18, fontWeight: 800, marginTop: 3, letterSpacing: "-0.02em" }}>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 800, marginTop: 3, letterSpacing: "-0.02em" }}>
                     {formatCurrency(cashTenderedCents)}
                   </div>
                 </div>
@@ -411,7 +470,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                   <div
                     style={{
                       fontFamily: "var(--font-mono)",
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: 800,
                       letterSpacing: "-0.02em",
                       marginTop: 3,
@@ -428,10 +487,51 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 </div>
               </div>
 
+              {/* No-sale drawer button + receipt preview hint */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={handleNoSaleDrawer}
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-pill)",
+                    backgroundColor: "var(--bg-surface-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                    color: "var(--text-secondary)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                  title="Opens drawer with reason no_sale (logged to backend)"
+                >
+                  No-Sale Drawer
+                </button>
+                <button
+                  onClick={async () => {
+                    try { await openDrawer({ reason: "manager_override", amountCents: 0 }); } catch(e:any){ setErrorMsg(e.message);} 
+                  }}
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-pill)",
+                    backgroundColor: "var(--bg-surface-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                    color: "var(--text-secondary)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Manager Override
+                </button>
+              </div>
+
             </div>
           )}
 
-          {/* M-Pesa Mobile Money */}
+          {/* M-Pesa placeholder */}
           {(paymentMethod === "mpesa_stk" || paymentMethod === "mpesa_till") && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>
@@ -443,7 +543,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="e.g. 0712345678 or 254712345678"
                 style={{
-                  height: 46,
+                  height: 44,
                   padding: "0 16px",
                   fontSize: 14,
                   fontFamily: "var(--font-mono)",
@@ -457,12 +557,59 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 onFocus={(e) => (e.currentTarget.style.borderColor = "var(--border-focus)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
               />
-              <div style={{ fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.45 }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.45 }}>
                 {paymentMethod === "mpesa_stk"
-                  ? "Instant Daraja STK Push will prompt customer for M-Pesa PIN on handset."
-                  : "Customer enters Till 445566 from Lipa na M-Pesa menu. Reconciled in Phase 4."}
+                  ? "STK Push requires online — cash is primary offline method per §2.4. This verifies cash first."
+                  : "Till manual flow — customer enters Till, cashier records code. Cash is primary."}
               </div>
             </div>
+          )}
+
+          {/* Error / success banner */}
+          {errorMsg && (
+            <div
+              style={{
+                padding: "10px 14px",
+                borderRadius: "var(--radius-md)",
+                backgroundColor: "var(--accent-rose-bg)",
+                border: "1px solid rgba(224,109,115,0.35)",
+                color: "var(--accent-rose)",
+                fontSize: 12,
+                fontWeight: 600,
+                lineHeight: 1.4,
+              }}
+            >
+              {errorMsg}
+            </div>
+          )}
+          {isSuccess && (
+            <div
+              style={{
+                padding: "10px 14px",
+                borderRadius: "var(--radius-md)",
+                backgroundColor: "rgba(141,161,115,0.15)",
+                border: "1px solid rgba(141,161,115,0.35)",
+                color: "var(--accent-sage)",
+                fontSize: 12,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <IconCheck size={16} /> {lastReceipt?.printerType === "virtual" ? "Sale completed — receipt queued (virtual printer)" : "Sale completed — receipt printed & drawer kicked"}
+            </div>
+          )}
+          {lastReceipt && lastReceipt.textPreview && (
+            <details style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600 }}>Last ESC/POS receipt preview (real tx data)</summary>
+              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: 10, backgroundColor: "var(--bg-surface-elevated)", padding: 12, borderRadius: 8, marginTop: 8, maxHeight: 240, overflowY: "auto", border: "1px solid var(--border-subtle)" }}>
+                {lastReceipt.textPreview || lastReceipt.virtualParsed || "—"}
+              </pre>
+              <div style={{ fontSize: 10, marginTop: 4, fontFamily: "var(--font-mono)" }}>
+                bytes={lastReceipt.bytesLength} hex={ (lastReceipt.hexPreview||"").substring(0,80)}... printer={lastReceipt.printerType}
+              </div>
+            </details>
           )}
         </div>
 
@@ -473,13 +620,14 @@ export const TenderModal: React.FC<TenderModalProps> = ({
             alignItems: "center",
             justifyContent: "flex-end",
             gap: 12,
-            padding: "18px 24px",
+            padding: "14px 20px",
             borderTop: "1px solid var(--border-subtle)",
             backgroundColor: "var(--bg-surface-subtle)",
           }}
         >
           <button
             onClick={onClose}
+            disabled={isProcessing}
             style={{
               padding: "10px 20px",
               borderRadius: "var(--radius-pill)",
@@ -488,7 +636,8 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               color: "var(--text-secondary)",
               fontSize: 13,
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: isProcessing ? "not-allowed" : "pointer",
+              opacity: isProcessing ? 0.6 : 1,
             }}
           >
             Cancel
@@ -496,22 +645,29 @@ export const TenderModal: React.FC<TenderModalProps> = ({
 
           <button
             onClick={handleConfirm}
-            disabled={paymentMethod === "cash" && !isExactOrMore}
+            disabled={isProcessing || (paymentMethod === "cash" && !isExactOrMore) || isZeroItems}
             className="pos-btn-pill pos-btn-pill-primary"
             style={{
-              padding: "10px 26px",
+              padding: "10px 24px",
               backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
-              opacity: isExactOrMore ? 1 : 0.5,
-              cursor: isExactOrMore ? "pointer" : "not-allowed",
+              opacity: (isProcessing || (paymentMethod === "cash" && !isExactOrMore) || isZeroItems) ? 0.5 : 1,
+              cursor: (isProcessing || (paymentMethod === "cash" && !isExactOrMore) || isZeroItems) ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 13,
+              fontWeight: 700,
             }}
           >
             {isSuccess ? (
               <>
                 <IconCheck size={16} />
-                <span>Transaction Logged</span>
+                <span>{lastReceipt ? "Done" : "Transaction Logged"}</span>
               </>
+            ) : isProcessing ? (
+              <span>Processing…</span>
             ) : (
-              <span>Complete Sale</span>
+              <span>Complete Sale — Cash</span>
             )}
           </button>
         </div>

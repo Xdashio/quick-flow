@@ -29,6 +29,8 @@ export interface SyncStatus {
   status: "idle" | "syncing" | "synced" | "offline" | "error";
   productsCount: number;
   taxCategoriesCount: number;
+  pendingCount?: number;
+  pendingFlush?: any;
   errorMessage?: string | null;
 }
 

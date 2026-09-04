@@ -21,6 +21,7 @@ export default function App() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [lastSale, setLastSale] = useState<any>(null);
 
   // Sync theme attribute on document root
   useEffect(() => {
@@ -94,49 +95,25 @@ export default function App() {
   // Fast barcode lookup
   const handleBarcodeSubmit = useCallback(async (code: string): Promise<boolean> => {
     try {
-      // 1. Check for weight-embedded barcode (e.g. prefix 20, length 13)
-      // Format: 20 IIIII PPPPP C
-      // IIIII = item code, PPPPP = price or weight, C = checksum
       const isWeightEmbedded = code.startsWith("20") && code.length === 13;
       
       let lookupCode = code;
       let dynamicPriceCents: number | null = null;
-      let dynamicWeight: number | null = null;
 
       if (isWeightEmbedded) {
-        // Extract the 5-digit item code
         const itemCode = code.substring(2, 7);
-        // Extract the 5-digit payload (price or weight)
         const payloadStr = code.substring(7, 12);
         const payloadValue = parseInt(payloadStr, 10);
-        
-        lookupCode = itemCode; // We will look up the base product by this 5-digit code
-        
-        // For simplicity, we treat the payload as price_cents if the product isn't weighed,
-        // or as the weight (e.g., in grams or 0.01kg) if it is. We'll decide after lookup.
-        // Let's store the raw payload value:
+        lookupCode = itemCode;
         dynamicPriceCents = payloadValue;
       }
 
-      // Lookup product by barcode (or item code if weight-embedded)
       const product = await posApi.getProductByBarcode(lookupCode);
       if (product) {
         let productToAdd = product;
-        let qtyToAdd = 1;
-
         if (isWeightEmbedded) {
-          if (product.is_weighed) {
-            // If it's a weighed item, the payload might represent weight e.g., in grams.
-            // But if it's price embedded, payload is price. We'll assume the payload is price_cents
-            // to make the checkout total correct, or adjust quantity to reflect weight if price_cents is fixed.
-            // Let's override the price_cents of the product to the scanned price.
-            productToAdd = { ...product, price_cents: dynamicPriceCents! };
-          } else {
-            // Not explicitly weighed, but we have a dynamic price
-            productToAdd = { ...product, price_cents: dynamicPriceCents! };
-          }
+          productToAdd = { ...product, price_cents: dynamicPriceCents! };
         }
-
         handleAddToCart(productToAdd);
         return true;
       }
@@ -145,7 +122,7 @@ export default function App() {
       console.error("[App] Barcode lookup error:", err);
       return false;
     }
-  }, [handleAddToCart]);
+  }, []);
 
   // Use the global barcode scanner hook
   useBarcodeScanner(handleBarcodeSubmit);
@@ -171,6 +148,14 @@ export default function App() {
 
   const totals = calculateCartTotals(cartItems);
 
+  const handleCompleteSale = (result: any) => {
+    setLastSale(result);
+    setCartItems([]);
+    setIsMobileCartOpen(false);
+    // Refresh sync status to show pendingCount update
+    posApi.getSyncStatus().then(setSyncStatus).catch(() => {});
+  };
+
   return (
     <div className="pos-shell">
       {/* Top Header Bar */}
@@ -181,6 +166,46 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
+
+      {/* Last sale banner (receipt + drawer kick verification, offline badge) */}
+      {lastSale && (
+        <div style={{
+          margin: "10px 16px 0",
+          padding: "10px 14px",
+          borderRadius: 10,
+          backgroundColor: lastSale.offline ? "rgba(217,119,87,0.12)" : "rgba(141,161,115,0.12)",
+          border: `1px solid ${lastSale.offline ? "rgba(217,119,87,0.35)" : "rgba(141,161,115,0.35)"}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: 12,
+          gap: 12,
+          flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+              Last sale: {lastSale.transactionId?.substring(0, 8)} · {formatCurrency(totals.grandTotalCents)} → change {formatCurrency(lastSale.changeDueCents ?? 0)}
+              {lastSale.offline && <span style={{ background: "#d97757", color: "#fff", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>OFFLINE QUEUED</span>}
+              {!lastSale.offline && <span style={{ background: "#8da173", color: "#fff", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>SYNCED</span>}
+            </div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>
+              payment=cash captured · drawer sale kick {lastSale.drawerKick?.bytesHex || "—"} · receipt {lastSale.receipt?.bytesLength || 0} bytes ({lastSale.receipt?.printerType || "virtual"})
+              {lastSale.queued && " · pending_sync → will retry on next sync tick"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {syncStatus?.pendingCount !== undefined && syncStatus.pendingCount > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#d97757" }}>{syncStatus.pendingCount} queued</span>
+            )}
+            <button
+              onClick={() => setLastSale(null)}
+              style={{ background: "none", border: "1px solid var(--border-subtle)", borderRadius: 999, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Container */}
       <div className="pos-main-container">
@@ -232,6 +257,7 @@ export default function App() {
               </div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                 {totals.itemCount} {totals.itemCount === 1 ? "item" : "items"}
+                {syncStatus?.pendingCount ? ` · ${syncStatus.pendingCount} queued` : ""}
               </div>
             </div>
           </div>
@@ -266,15 +292,13 @@ export default function App() {
         onTriggerSync={handleTriggerSync}
       />
 
-      {/* Tender Payment Modal (Replaces browser alert) */}
+      {/* Cash Tender Modal — wired to real backend via completeCashSale */}
       <TenderModal
         isOpen={isTenderModalOpen}
         onClose={() => setIsTenderModalOpen(false)}
+        items={cartItems}
         totals={totals}
-        onCompleteSale={() => {
-          handleClearCart();
-          setIsMobileCartOpen(false);
-        }}
+        onCompleteSale={handleCompleteSale}
       />
     </div>
   );

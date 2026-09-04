@@ -10,6 +10,11 @@ declare global {
       getSyncStatus: () => Promise<SyncStatus>;
       triggerSync: () => Promise<SyncStatus>;
       onSyncUpdate: (callback: (status: SyncStatus) => void) => () => void;
+      completeCashSale: (payload: any) => Promise<any>;
+      openDrawer: (args: any) => Promise<any>;
+      getPendingCount: () => Promise<number>;
+      getLastReceipt: () => Promise<any>;
+      previewReceipt: (tx: any) => Promise<any>;
     };
   }
 }
@@ -90,5 +95,34 @@ export const posApi = {
       }
     }, 5000);
     return () => clearInterval(timer);
+  },
+
+  async completeCashSale(payload: any): Promise<any> {
+    if (window.posApi?.completeCashSale) return window.posApi.completeCashSale(payload);
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const res = await fetch(`${apiUrl}/checkout/cash`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Checkout cash failed ${res.status}: ${await res.text()}`);
+    return res.json();
+  },
+
+  async openDrawer(args: { reason: string; amountCents?: number; registerId?: string; userId?: string }): Promise<any> {
+    if (window.posApi?.openDrawer) return window.posApi.openDrawer(args);
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const res = await fetch(`${apiUrl}/checkout/drawer/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+    });
+    if (!res.ok) throw new Error(`Drawer open failed ${res.status}: ${await res.text()}`);
+    return res.json();
+  },
+
+  async getPendingCount(): Promise<number> {
+    if (window.posApi?.getPendingCount) return window.posApi.getPendingCount();
+    return 0;
   },
 };
