@@ -7,6 +7,10 @@ import { ProductsModule } from './products/products.module';
 import { TaxCategoriesModule } from './tax-categories/tax-categories.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { PaymentsModule } from './payments/payments.module';
+import { DrawerEventsModule } from './drawer-events/drawer-events.module';
+import { HardwareModule } from './hardware/hardware.module';
+import { CheckoutModule } from './checkout/checkout.module';
 
 @Module({
   imports: [
@@ -16,6 +20,10 @@ import { InventoryModule } from './inventory/inventory.module';
     TaxCategoriesModule,
     TransactionsModule,
     InventoryModule,
+    PaymentsModule,
+    DrawerEventsModule,
+    HardwareModule,
+    CheckoutModule,
   ],
   controllers: [AppController],
   providers: [AppService],
