@@ -128,11 +128,11 @@ class SyncService {
         INSERT INTO products (
           id, sku, barcode, name, description, unit_type,
           is_weighed, price_cents, tax_category_id, category_id,
-          active, created_at, updated_at
+          active, image_key, created_at, updated_at
         ) VALUES (
           @id, @sku, @barcode, @name, @description, @unit_type,
           @is_weighed, @price_cents, @tax_category_id, @category_id,
-          @active, @created_at, @updated_at
+          @active, @image_key, @created_at, @updated_at
         )
         ON CONFLICT(id) DO UPDATE SET
           sku = excluded.sku,
@@ -145,6 +145,7 @@ class SyncService {
           tax_category_id = excluded.tax_category_id,
           category_id = excluded.category_id,
           active = excluded.active,
+          image_key = excluded.image_key,
           updated_at = excluded.updated_at
       `);
 
@@ -164,6 +165,7 @@ class SyncService {
             tax_category_id: p.taxCategoryId || p.tax_category_id || null,
             category_id: p.categoryId || p.category_id || null,
             active: p.active !== false ? 1 : 0,
+            image_key: p.imageKey || p.image_key || null,
             created_at: p.createdAt || new Date().toISOString(),
             updated_at: p.updatedAt || new Date().toISOString(),
           });
@@ -179,6 +181,29 @@ class SyncService {
         }
       });
       upsertAllProducts(products);
+
+      // 5. Cache product images (download once, skip if already cached)
+      const productsWithImages = products.filter(
+        (p) => (p.imageUrl || p.imageKey) && (p.active !== false)
+      );
+      if (productsWithImages.length > 0) {
+        console.log(`[SyncService] Caching images for ${productsWithImages.length} products...`);
+        // Sequential to avoid hammering the CDN; images are small so this is fast
+        for (const p of productsWithImages) {
+          try {
+            await this.cacheProductImage(db, p);
+          } catch (imgErr) {
+            // Image caching failure is non-fatal — register still works with placeholders
+            console.warn(`[SyncService] Image cache error for product ${p.id}:`, imgErr.message);
+          }
+        }
+      }
+
+      // Evict cached images for products that no longer have an imageKey
+      const productsWithoutImages = products.filter((p) => !p.imageKey && !p.image_key);
+      for (const p of productsWithoutImages) {
+        await this.evictProductImage(p.id);
+      }
 
       // 5. Update sync_meta
       const setMeta = db.prepare(`
@@ -257,6 +282,72 @@ class SyncService {
     } finally {
       if (db) db.close();
       this.isSyncing = false;
+    }
+  }
+
+  /**
+   * Downloads and caches a product image to disk.
+   * Skips if the image_key hasn't changed since last cache.
+   * Images are stored as: register/data/images/<productId>.<ext>
+   */
+  async cacheProductImage(db, product) {
+    const imageKey = product.imageKey || product.image_key;
+    const imageUrl = product.imageUrl || (this.cdnUrl ? `${this.cdnUrl}/${imageKey}` : null);
+    if (!imageKey || !imageUrl) return;
+
+    const path = require("path");
+    const fs = require("fs");
+    const imagesDir = path.join(path.dirname(this.dbPath), "images");
+    fs.mkdirSync(imagesDir, { recursive: true });
+
+    // Check if this exact key is already on disk
+    const row = db.prepare(`SELECT image_key, image_cached_at FROM products WHERE id = ?`).get(product.id);
+    if (row && row.image_key === imageKey && row.image_cached_at) {
+      const ext = path.extname(imageKey).toLowerCase() || ".jpg";
+      const destPath = path.join(imagesDir, `${product.id}${ext}`);
+      if (fs.existsSync(destPath)) return; // already cached
+    }
+
+    const ext = path.extname(imageKey).toLowerCase() || ".jpg";
+    const destPath = path.join(imagesDir, `${product.id}${ext}`);
+
+    // Remove stale files with different extension
+    const allExts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+    for (const staleExt of allExts) {
+      if (staleExt === ext) continue;
+      const stalePath = path.join(imagesDir, `${product.id}${staleExt}`);
+      if (fs.existsSync(stalePath)) fs.unlinkSync(stalePath);
+    }
+
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${imageUrl}`);
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    fs.writeFileSync(destPath, buffer);
+
+    // Mark cached in SQLite
+    db.prepare(`UPDATE products SET image_cached_at = ? WHERE id = ?`).run(
+      new Date().toISOString(),
+      product.id,
+    );
+
+    console.log(`[SyncService] Cached image for product ${product.id} → ${destPath}`);
+  }
+
+  /**
+   * Removes cached image file(s) for a product that no longer has an imageKey.
+   */
+  async evictProductImage(productId) {
+    const path = require("path");
+    const fs = require("fs");
+    const imagesDir = path.join(path.dirname(this.dbPath), "images");
+    const allExts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+    for (const ext of allExts) {
+      const p = path.join(imagesDir, `${productId}${ext}`);
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+        console.log(`[SyncService] Evicted cached image for product ${productId}`);
+      }
     }
   }
 

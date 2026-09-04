@@ -51,4 +51,14 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  /**
+   * R2 object key set after a successful pre-signed upload.
+   * e.g. "products/uuid/random.jpg"
+   * The full CDN URL is derived server-side — never stored here.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  imageKey?: string;
 }

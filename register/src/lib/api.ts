@@ -17,6 +17,10 @@ declare global {
       getPendingCount: () => Promise<number>;
       getLastReceipt: () => Promise<any>;
       previewReceipt: (tx: any) => Promise<any>;
+      // Image cache
+      getImageLocalPath: (productId: string) => Promise<string | null>;
+      cacheImage: (args: { productId: string; imageKey: string; imageUrl: string }) => Promise<{ cached: boolean; localPath?: string; reason?: string }>;
+      evictImageCache: (productId: string) => Promise<{ removed: number }>;
     };
   }
 }
@@ -143,5 +147,27 @@ export const posApi = {
     if (window.posApi?.notifyOnline) {
       window.posApi.notifyOnline();
     }
+  },
+
+  /**
+   * Returns the local file:// path for a cached product image, or null.
+   * In browser dev mode always returns null (no local disk).
+   */
+  async getImageLocalPath(productId: string): Promise<string | null> {
+    if (window.posApi?.getImageLocalPath) {
+      return window.posApi.getImageLocalPath(productId);
+    }
+    return null;
+  },
+
+  /**
+   * Trigger an immediate image download for a single product.
+   * Used in the UI to warm the cache after a manual sync.
+   */
+  async cacheImage(args: { productId: string; imageKey: string; imageUrl: string }) {
+    if (window.posApi?.cacheImage) {
+      return window.posApi.cacheImage(args);
+    }
+    return { cached: false, reason: "not in electron" };
   },
 };

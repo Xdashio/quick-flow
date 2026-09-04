@@ -10,6 +10,10 @@ export interface CachedProduct {
   tax_category_id: string | null;
   category_id: string | null;
   active: number;
+  /** R2 object key synced from backend */
+  image_key: string | null;
+  /** ISO timestamp set when image was successfully downloaded to disk */
+  image_cached_at: string | null;
   created_at: string;
   updated_at: string;
   tax_category_name?: string | null;

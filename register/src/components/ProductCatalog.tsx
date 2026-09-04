@@ -2,6 +2,84 @@ import React, { useState, useEffect, useRef } from "react";
 import type { CachedProduct } from "../lib/types";
 import { formatCurrency, formatTaxRate } from "../lib/cart";
 import { IconBarcode, IconScale, IconSearch, IconClose, IconPlus } from "./icons";
+import { posApi } from "../lib/api";
+
+// ── Product image with local cache + placeholder ────────────────────────────
+
+interface ProductImageProps {
+  product: CachedProduct;
+}
+
+const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!product.image_key) return;
+
+    let cancelled = false;
+
+    posApi.getImageLocalPath(product.id).then((localPath) => {
+      if (cancelled) return;
+      if (localPath) {
+        setSrc(localPath);
+      }
+      // If not cached yet, it will be downloaded by the sync service on next tick.
+      // We don't block the UI — placeholder shows until then.
+    }).catch(() => {/* ignore */});
+
+    return () => { cancelled = true; };
+  }, [product.id, product.image_key, product.image_cached_at]);
+
+  if (!src) {
+    // Initials placeholder — same aesthetic as empty states elsewhere in the app
+    const initials = product.name
+      .split(" ")
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("");
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: 80,
+          borderRadius: "var(--radius-sm)",
+          backgroundColor: "var(--bg-surface-subtle)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 22,
+          fontWeight: 800,
+          color: "var(--text-muted)",
+          letterSpacing: "-0.02em",
+          marginBottom: 10,
+          userSelect: "none",
+          overflow: "hidden",
+          border: "1px solid var(--border-subtle)",
+        }}
+      >
+        {initials || "?"}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={product.name}
+      loading="lazy"
+      style={{
+        width: "100%",
+        height: 80,
+        objectFit: "cover",
+        borderRadius: "var(--radius-sm)",
+        marginBottom: 10,
+        border: "1px solid var(--border-subtle)",
+        display: "block",
+      }}
+      onError={() => setSrc(null)}
+    />
+  );
+};
 
 interface ProductCatalogProps {
   products: CachedProduct[];

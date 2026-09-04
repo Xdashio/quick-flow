@@ -40,6 +40,8 @@ function initDb() {
       tax_category_id TEXT REFERENCES tax_categories(id),
       category_id TEXT,
       active INTEGER NOT NULL DEFAULT 1,
+      image_key TEXT,
+      image_cached_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -59,7 +61,20 @@ function initDb() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  // Idempotent migration: add image columns to existing DBs that pre-date this feature
+  try {
+    db.exec(`ALTER TABLE products ADD COLUMN image_key TEXT`);
+  } catch (_) { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE products ADD COLUMN image_cached_at TEXT`);
+  } catch (_) { /* column already exists */ }
+
   db.close();
+
+  // Ensure the image cache directory exists
+  const imagesDir = path.join(__dirname, "../data/images");
+  fs.mkdirSync(imagesDir, { recursive: true });
+
   console.log(`[electron] SQLite initialized at ${dbPath}`);
 }
 
@@ -210,6 +225,93 @@ function setupIpc() {
   ipcMain.handle("printer:preview", async (_event, tx) => {
     const p = registerPrinter || checkoutQueue?.printer || new RegisterPrinter({});
     return p.printReceipt(tx);
+  });
+
+  // ── Image cache ─────────────────────────────────────────────────────────────
+  const imagesDir = path.join(__dirname, "../data/images");
+
+  /**
+   * Returns the local file:// path for a cached product image, or null if not cached.
+   * The renderer uses this to decide whether to show <img src="file://..."> or a placeholder.
+   */
+  ipcMain.handle("images:get-local-path", (_event, productId) => {
+    const exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+    for (const ext of exts) {
+      const candidate = path.join(imagesDir, `${productId}${ext}`);
+      if (fs.existsSync(candidate)) {
+        return `file://${candidate}`;
+      }
+    }
+    return null;
+  });
+
+  /**
+   * Prefetch/cache a product image from a CDN URL.
+   * Called by the sync service after each product sync — downloads once,
+   * stores at data/images/<productId>.<ext>, marks image_cached_at in SQLite.
+   * Safe to call repeatedly — skips if already cached and key hasn't changed.
+   */
+  ipcMain.handle("images:cache-image", async (_event, { productId, imageKey, imageUrl }) => {
+    if (!imageUrl || !productId) return { cached: false, reason: "no imageUrl" };
+
+    const ext = path.extname(imageKey || imageUrl).toLowerCase() || ".jpg";
+    const destPath = path.join(imagesDir, `${productId}${ext}`);
+
+    // Check if already cached by comparing what's on disk
+    const db = getDb();
+    try {
+      const row = db.prepare(`SELECT image_key, image_cached_at FROM products WHERE id = ?`).get(productId);
+      if (row && row.image_key === imageKey && row.image_cached_at && fs.existsSync(destPath)) {
+        return { cached: true, reason: "already cached", localPath: `file://${destPath}` };
+      }
+    } finally {
+      db.close();
+    }
+
+    // Download image
+    try {
+      const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) return { cached: false, reason: `fetch failed: ${res.status}` };
+
+      // Remove stale cached files for this product (different extension)
+      const staleExts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"].filter((e) => e !== ext);
+      for (const staleExt of staleExts) {
+        const stalePath = path.join(imagesDir, `${productId}${staleExt}`);
+        if (fs.existsSync(stalePath)) fs.unlinkSync(stalePath);
+      }
+
+      const buffer = Buffer.from(await res.arrayBuffer());
+      fs.writeFileSync(destPath, buffer);
+
+      // Mark as cached in SQLite
+      const db2 = getDb();
+      try {
+        db2.prepare(`UPDATE products SET image_cached_at = ? WHERE id = ?`).run(new Date().toISOString(), productId);
+      } finally {
+        db2.close();
+      }
+
+      return { cached: true, localPath: `file://${destPath}` };
+    } catch (err) {
+      console.warn(`[images] Failed to cache image for product ${productId}:`, err.message);
+      return { cached: false, reason: err.message };
+    }
+  });
+
+  /**
+   * Remove a cached image file for a product (e.g. when image is cleared on backend).
+   */
+  ipcMain.handle("images:evict-cache", (_event, productId) => {
+    const exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+    let removed = 0;
+    for (const ext of exts) {
+      const p = path.join(imagesDir, `${productId}${ext}`);
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+        removed++;
+      }
+    }
+    return { removed };
   });
 }
 

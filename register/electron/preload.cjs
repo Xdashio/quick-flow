@@ -38,4 +38,12 @@ contextBridge.exposeInMainWorld("posApi", {
     ipcRenderer.invoke("printer:last-receipt"),
   previewReceipt: (tx) =>
     ipcRenderer.invoke("printer:preview", tx),
+
+  // Image cache: local file path lookup and download
+  getImageLocalPath: (productId) =>
+    ipcRenderer.invoke("images:get-local-path", productId),
+  cacheImage: (args) =>
+    ipcRenderer.invoke("images:cache-image", args),
+  evictImageCache: (productId) =>
+    ipcRenderer.invoke("images:evict-cache", productId),
 });

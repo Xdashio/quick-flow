@@ -42,6 +42,7 @@ model Product {
   taxCategory   TaxCategory?      @relation(fields: [taxCategoryId], references: [id])
   categoryId    String?           @map("category_id") @db.Uuid
   category      ProductCategory?  @relation(fields: [categoryId], references: [id])
+  imageKey      String?           @map("image_key") @db.VarChar(512)
   active        Boolean           @default(true)
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
