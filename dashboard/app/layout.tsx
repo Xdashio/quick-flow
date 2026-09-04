@@ -1,14 +1,15 @@
-export const metadata = {
-  title: "POS Manager Dashboard",
-  description: "Kenya M-Pesa-first POS — manager dashboard",
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: { default: 'Manager Dashboard — QuickFlow POS', template: '%s — QuickFlow POS' },
+  description: 'Kenya M-Pesa-first POS — Manager Dashboard',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: "system-ui, sans-serif", margin: 0, background: "#fafafa" }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

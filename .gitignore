@@ -4,6 +4,8 @@ dist/
 out/
 coverage/
 .env
+.env.local
+.env*.local
 data/*.db
 data/*.db-*
 *.log
