@@ -181,7 +181,7 @@ function setupIpc() {
     return checkoutQueue.completeCashSale(payload);
   });
 
-  // Drawer events: no_sale / manager_override / change — reason-coded §5.3
+  // Drawer events: no_sale / manager_override / change — reason-coded
   ipcMain.handle("drawer:open", async (_event, args) => {
     if (!checkoutQueue) throw new Error("CheckoutQueue not initialized");
     return checkoutQueue.openDrawerNoSale(args || {});

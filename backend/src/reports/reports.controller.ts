@@ -28,7 +28,7 @@ export class ReportsController {
 
   /**
    * GET /api/reports/pending-mpesa?thresholdMinutes=15
-   * Unconfirmed M-Pesa payments older than threshold — blueprint §6.1 flag.
+   * Unconfirmed M-Pesa payments older than threshold — blueprint flag.
    */
   @Get('pending-mpesa')
   pendingMpesa(@Query('thresholdMinutes') thresholdMinutes?: string) {

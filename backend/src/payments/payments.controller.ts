@@ -63,7 +63,7 @@ export class PaymentsController {
   /**
    * POST /payments/mpesa/callback
    * Safaricom's Daraja sandbox posts the STK Push result to this endpoint.
-   * Validates CheckoutRequestID against a pending DB record (§6.1) before
+   * Validates CheckoutRequestID against a pending DB record before
    * trusting the payload — returns 404 for unknown/mismatched callbacks.
    *
    * This endpoint must be publicly reachable (use ngrok/cloudflare tunnel in dev).

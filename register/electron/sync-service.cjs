@@ -202,7 +202,7 @@ class SyncService {
         `[SyncService] Sync complete. Products: ${counts.productsCount}, Tax categories: ${counts.taxCategoriesCount}`
       );
 
-      // Flush queued cash sales (offline-capable per §2.4)
+      // Flush queued cash sales
       let pendingFlush = null;
       if (this.checkoutQueue) {
         try {

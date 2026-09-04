@@ -106,7 +106,7 @@ export class MpesaService {
    * - Creates a Payment record with status='pending' and checkoutRequestId
    * - Returns the full raw Daraja response + internal payment record
    *
-   * Per blueprint §5.4: CheckoutRequestID is persisted before Daraja responds
+   * Per blueprint: CheckoutRequestID is persisted before Daraja responds
    * so the callback handler can validate it against a known pending record.
    */
   async initiateSTKPush(
@@ -205,7 +205,7 @@ export class MpesaService {
   // ─── 3. Callback Handler ─────────────────────────────────────────────────
 
   /**
-   * Handles the real Daraja STK Push callback (§5.4 / §6.1).
+   * Handles the real Daraja STK Push callback.
    *
    * Security validation per blueprint:
    * - Cross-checks CheckoutRequestID against a known `pending` Payment in DB
@@ -229,7 +229,7 @@ export class MpesaService {
         `ResultCode=${ResultCode} ResultDesc=${ResultDesc}`,
     );
 
-    // ── §6.1: Validate CheckoutRequestID against a PENDING payment ──────
+    // ── Validate CheckoutRequestID against a PENDING payment ──────
     const payment = await this.prisma.payment.findFirst({
       where: {
         checkoutRequestId: CheckoutRequestID,

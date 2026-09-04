@@ -35,7 +35,7 @@ export function CreateUserForm() {
       }
 
       const user = await res.json();
-      setSuccess(`✅ Created user "${user.name}" (${user.role})`);
+      setSuccess(`Created user "${user.name}" (${user.role})`);
       setName('');
       setPassword('');
       setRole('cashier');
@@ -51,17 +51,7 @@ export function CreateUserForm() {
     <form onSubmit={handleSubmit} id="create-user-form">
       {error && <div className="form-error" style={{ marginBottom: 12 }}>{error}</div>}
       {success && (
-        <div
-          style={{
-            background: 'rgba(16,185,129,0.1)',
-            border: '1px solid rgba(16,185,129,0.25)',
-            borderRadius: 6,
-            padding: '10px 12px',
-            fontSize: 12,
-            color: '#059669',
-            marginBottom: 12,
-          }}
-        >
+        <div className="form-success" style={{ marginBottom: 12 }}>
           {success}
         </div>
       )}

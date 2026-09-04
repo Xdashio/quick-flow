@@ -23,7 +23,7 @@ export class AuthService {
    * Validates username (matched against name field, case-insensitive) and
    * password (bcrypt-checked against pin_hash column). Returns JWT on success.
    *
-   * Blueprint §6.3: manager/admin login uses full password, not short PIN.
+   * Manager/admin login uses full password, not short PIN.
    * The pin_hash column stores bcrypt of whatever credential the user has —
    * short PINs for cashiers, full passwords for managers.
    *

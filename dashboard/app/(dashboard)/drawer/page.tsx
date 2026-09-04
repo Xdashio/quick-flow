@@ -16,10 +16,10 @@ interface DrawerSummary {
 }
 
 const REASON_LABELS: Record<string, string> = {
-  sale: '🏷️ Sale completion',
-  no_sale: '🔓 No-sale / change',
-  manager_override: '🔑 Manager override',
-  change: '💰 Change dispensed',
+  sale: 'Sale completion',
+  no_sale: 'No-sale / change',
+  manager_override: 'Manager override',
+  change: 'Change dispensed',
 };
 
 const REASON_BADGE: Record<string, string> = {
@@ -51,8 +51,8 @@ export default async function DrawerPage() {
         {discrepancy !== 0 && (
           <div className={`alert ${discrepancy > 0 ? 'alert-warning' : 'alert-danger'}`} id="drawer-discrepancy-alert">
             {discrepancy > 0
-              ? `⚠️ Drawer opened ${saleOpens}x for sales but only ${cashTxCount} cash payments captured — ${discrepancy} unexplained open${discrepancy !== 1 ? 's' : ''}.`
-              : `🔴 ${cashTxCount} cash payments captured but drawer only opened ${saleOpens}x for sales — possible data inconsistency.`}
+              ? `Drawer opened ${saleOpens}x for sales but only ${cashTxCount} cash payments captured — ${discrepancy} unexplained open${discrepancy !== 1 ? 's' : ''}.`
+              : `${cashTxCount} cash payments captured but drawer only opened ${saleOpens}x for sales — possible data inconsistency.`}
           </div>
         )}
 
@@ -72,8 +72,8 @@ export default async function DrawerPage() {
           </div>
           <div className="kpi-card" style={{ '--kpi-accent': discrepancy === 0 ? '#10b981' : '#ef4444' } as React.CSSProperties}>
             <div className="kpi-label">Discrepancy</div>
-            <div className="kpi-value" style={{ color: discrepancy === 0 ? '#059669' : '#dc2626' }} id="kpi-discrepancy">
-              {discrepancy === 0 ? '✓ Balanced' : `${discrepancy > 0 ? '+' : ''}${discrepancy}`}
+            <div className="kpi-value" style={{ color: discrepancy === 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }} id="kpi-discrepancy">
+              {discrepancy === 0 ? 'Balanced' : `${discrepancy > 0 ? '+' : ''}${discrepancy}`}
             </div>
             <div className="kpi-sub">Opens vs. captured payments</div>
           </div>
@@ -83,12 +83,11 @@ export default async function DrawerPage() {
         <div className="section">
           <div className="section-header">
             <h3>Drawer Events by Reason</h3>
-            <span className="topbar-badge">Blueprint §5.3</span>
+            <span className="topbar-badge">Blueprint</span>
           </div>
           <div className="table-wrap">
             {data.drawerEvents.length === 0 ? (
               <div className="empty">
-                <div className="empty-icon">🗄️</div>
                 <p>No drawer events today</p>
               </div>
             ) : (

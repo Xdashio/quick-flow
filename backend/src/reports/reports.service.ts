@@ -138,7 +138,7 @@ export class ReportsService {
 
   /**
    * M-Pesa payments that are still pending/awaiting_confirmation
-   * older than the threshold (default 15 minutes), flagged per blueprint §6.1.
+   * older than the threshold (default 15 minutes), flagged per blueprint.
    */
   async getPendingMpesa(thresholdMinutes = 15): Promise<PendingMpesaRow[]> {
     const rows = (await this.prisma.$queryRawUnsafe<any[]>(

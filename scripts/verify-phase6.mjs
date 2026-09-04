@@ -90,7 +90,7 @@ async function run() {
 
   const txCreated = await txCreateRes.json();
 
-  // Complete the transaction per §2.1 state machine
+  // Complete the transaction per state machine
   const completeRes = await fetch(`${API_BASE}/transactions/${txCreated.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

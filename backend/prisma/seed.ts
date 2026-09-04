@@ -14,7 +14,7 @@ const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('[Seed] Seeding Kenya tax categories per blueprint §2.3...');
+  console.log('[Seed] Seeding Kenya tax categories...');
 
   // 1. Seed canonical tax categories
   const standard = await prisma.taxCategory.upsert({

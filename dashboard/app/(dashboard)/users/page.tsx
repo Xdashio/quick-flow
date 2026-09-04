@@ -34,7 +34,6 @@ export default async function UsersPage() {
             <div className="table-wrap">
               {users.length === 0 ? (
                 <div className="empty">
-                  <div className="empty-icon">👤</div>
                   <p>No users found — create one below</p>
                 </div>
               ) : (

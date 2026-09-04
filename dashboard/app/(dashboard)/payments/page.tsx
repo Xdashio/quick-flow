@@ -42,30 +42,29 @@ export default async function PaymentsPage() {
     <>
       <div className="topbar">
         <h2>Payments &amp; M-Pesa Reconciliation</h2>
-        <span className="topbar-badge">§6.1</span>
+        <span className="topbar-badge"></span>
       </div>
       <div className="page-content">
 
         {/* ── Unconfirmed M-Pesa Alert ─────────────────────── */}
         {pending.length > 0 && (
           <div className="alert alert-warning" id="mpesa-alert">
-            ⚠️ <strong>{pending.length}</strong> M-Pesa payment{pending.length !== 1 ? 's' : ''} unconfirmed
+            <strong>{pending.length}</strong> M-Pesa payment{pending.length !== 1 ? 's' : ''} unconfirmed
             for &gt;15 minutes. Review below.
           </div>
         )}
 
-        {/* ── Flagged Unconfirmed Payments (§6.1) ─────────── */}
+        {/* ── Flagged Unconfirmed Payments ─────────── */}
         <div className="section">
           <div className="section-header">
-            <h3>⚠️ Unconfirmed M-Pesa (&gt;15 min)</h3>
-            <span className="topbar-badge" style={{ background: 'rgba(245,158,11,0.12)', color: '#b45309' }}>
-              Blueprint §6.1
+            <h3>Unconfirmed M-Pesa (&gt;15 min)</h3>
+            <span className="topbar-badge" style={{ background: 'var(--accent-amber-bg)', color: 'var(--accent-amber)' }}>
+              Blueprint
             </span>
           </div>
           <div className="table-wrap">
             {pending.length === 0 ? (
               <div className="empty">
-                <div className="empty-icon">✅</div>
                 <p>No unconfirmed M-Pesa payments — all clear</p>
               </div>
             ) : (
@@ -120,7 +119,6 @@ export default async function PaymentsPage() {
           <div className="table-wrap">
             {breakdown.length === 0 ? (
               <div className="empty">
-                <div className="empty-icon">💳</div>
                 <p>No payments recorded today</p>
               </div>
             ) : (

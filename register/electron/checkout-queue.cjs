@@ -1,6 +1,6 @@
 // CheckoutQueue: Offline-capable cash sale queue
 // Stores pending payloads in pending_transactions SQLite table, retries when online
-// Receipt printing and drawer kick happen IMMEDIATELY (offline-capable per §2.4/5.3)
+// Receipt printing and drawer kick happen IMMEDIATELY
 // Backend logging is queued.
 
 const Database = require("better-sqlite3");

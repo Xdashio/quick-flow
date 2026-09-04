@@ -100,7 +100,7 @@ export class CheckoutService {
           },
         });
 
-        // 3. Drawer open event with reason code sale (distinct per blueprint §5.3)
+        // 3. Drawer open event with reason code sale
         const drawerEvent = await tx.drawerEvent.create({
           data: {
             registerId: dto.registerId ?? null,
@@ -110,7 +110,7 @@ export class CheckoutService {
           },
         });
 
-        // 4. Inventory movements ledger (append-only per §2.2)
+        // 4. Inventory movements ledger (append-only)
         for (const li of dto.lineItems) {
           await tx.inventoryMovement.create({
             data: {
@@ -165,7 +165,7 @@ export class CheckoutService {
           amountTenderedCents: dto.amountTenderedCents,
         });
 
-        // Drawer kick via printer abstraction (RJ11 pulse per §5.3) - also logged separately above
+        // Drawer kick via printer abstraction (RJ11 pulse) - also logged separately above
         await this.printer.kickDrawer(0);
       } catch (e: any) {
         this.logger.warn(`Receipt print failed post-transaction (sale still completed): ${e.message}`);

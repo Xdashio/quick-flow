@@ -10,7 +10,7 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 /**
- * Transaction state machine (§2.1 of blueprint):
+ * Transaction state machine:
  * DRAFT → IN_PROGRESS → AWAITING_PAYMENT → PAYMENT_CAPTURED → COMPLETED
  *                                         ↘ PAYMENT_FAILED → VOIDED
  * COMPLETED → REFUND_REQUESTED → REFUNDED
@@ -98,7 +98,7 @@ export class TransactionsService {
 
     const now = dto.createdAt ? new Date(dto.createdAt) : new Date();
 
-    // Server-side tax calculation and freeze (§2.3 of blueprint)
+    // Server-side tax calculation and freeze
     let subtotalCents = dto.subtotalCents ?? 0;
     let taxCents = dto.taxCents ?? 0;
     let totalCents = dto.totalCents ?? 0;

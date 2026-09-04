@@ -1,5 +1,5 @@
 -- Materialized view for current stock (derived from append-only ledger)
--- Phase 1: Blueprint §3 + Inventory Management §2.2
+-- Phase 1: Blueprint
 -- Current stock is NOT a mutable counter — it's SUM(quantity_delta) grouped
 DROP MATERIALIZED VIEW IF EXISTS current_inventory;
 CREATE MATERIALIZED VIEW current_inventory AS

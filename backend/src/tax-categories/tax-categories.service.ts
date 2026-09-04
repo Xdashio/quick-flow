@@ -37,7 +37,7 @@ export class TaxCategoriesService {
     return { deleted: true, id };
   }
 
-  // ───────────────────── Kenya VAT Calculation Engine (§2.3) ─────────────────────
+  // ───────────────────── Kenya VAT Calculation Engine
   async calculateTax(dto: {
     lineItems: Array<{
       productId: string;
@@ -123,7 +123,7 @@ export class TaxCategoriesService {
     };
   }
 
-  // Canonical Kenya tax categories per blueprint §2.3
+  // Canonical Kenya tax categories
   async seedStandardCategories() {
     const categories = [
       { name: 'standard', rateBp: 1600 },

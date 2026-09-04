@@ -68,7 +68,7 @@ async function OverviewContent() {
     <>
       <div className="topbar">
         <h2>Overview</h2>
-        <span className="topbar-badge">📅 {today}</span>
+        <span className="topbar-badge">{today}</span>
       </div>
       <div className="page-content">
         {/* ── KPI Cards ──────────────────────────────────────── */}
@@ -134,7 +134,6 @@ async function OverviewContent() {
           <div className="table-wrap">
             {breakdown.length === 0 ? (
               <div className="empty">
-                <div className="empty-icon">💳</div>
                 <p>No payments recorded today</p>
               </div>
             ) : (

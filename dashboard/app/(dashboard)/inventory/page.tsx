@@ -60,7 +60,6 @@ export default async function InventoryPage() {
           <div className="table-wrap">
             {products.length === 0 ? (
               <div className="empty">
-                <div className="empty-icon">📦</div>
                 <p>No products found — add products via the API or register</p>
               </div>
             ) : (
@@ -101,7 +100,6 @@ export default async function InventoryPage() {
           <div className="table-wrap">
             {movements.length === 0 ? (
               <div className="empty">
-                <div className="empty-icon">📋</div>
                 <p>No inventory movements recorded yet</p>
               </div>
             ) : (
@@ -124,7 +122,7 @@ export default async function InventoryPage() {
                         <td><span className={reasonBadge(m.reason)}>{m.reason}</span></td>
                         <td
                           className="text-right font-bold mono"
-                          style={{ color: delta >= 0 ? '#059669' : '#dc2626' }}
+                          style={{ color: delta >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}
                         >
                           {delta >= 0 ? '+' : ''}{delta.toFixed(3)}
                         </td>

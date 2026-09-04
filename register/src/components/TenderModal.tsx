@@ -559,7 +559,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               />
               <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.45 }}>
                 {paymentMethod === "mpesa_stk"
-                  ? "STK Push requires online — cash is primary offline method per §2.4. This verifies cash first."
+                  ? "STK Push requires online — cash is primary offline method."
                   : "Till manual flow — customer enters Till, cashier records code. Cash is primary."}
               </div>
             </div>

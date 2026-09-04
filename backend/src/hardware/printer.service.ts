@@ -4,7 +4,7 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 
 /**
- * ESC/POS Printer Abstraction Layer (§5.1 + §5.3 blueprint)
+ * ESC/POS Printer Abstraction Layer
  *
  * Provides printReceipt(transaction) interface that generates REAL ESC/POS
  * byte stream from REAL transaction data (line items, tax, total) — no hardcoded
@@ -124,7 +124,7 @@ export class PrinterService {
   }
 
   /**
-   * Drawer kick via printer (RJ11 pulse) — blueprint §5.3
+   * Drawer kick via printer (RJ11 pulse)
    * ESC p m t1 t2 : Generate pulse on drawer kick connector.
    * m=0 pin2, m=1 pin5
    */
@@ -265,7 +265,7 @@ export class PrinterService {
 
     // Drawer kick: ESC p 0 60 255 (pin 2, 120ms on, 510ms off) — appended after cut so drawer opens on completion
     // Note: kick pulse is after cut; some printers need it before cut. Include both patterns: also pre-cut kick
-    // We'll include drawer kick here as part of receipt → drawer opens on sale completion per §5.3
+    // We'll include drawer kick here as part of receipt → drawer opens on sale completion
     // But caller should also call kickDrawer() separately for logging reason code — this receipt-embedded kick is secondary
     // To avoid double-kick confusion, receipt includes ONE kick pulse
     push(ESC, 0x70, 0x00, 60, 255);
