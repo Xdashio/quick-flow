@@ -12,12 +12,18 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
+    "start": "npm run start:prod --workspace=backend",
+    "start:prod": "npm run start:prod --workspace=backend",
+    "prisma:migrate": "prisma migrate deploy --schema=backend/prisma/schema.prisma",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:register": "npm run dev --workspace=register",
     "dev:dashboard": "npm run dev --workspace=dashboard",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:ready": "pg_isready -h localhost -p 5432 -U pos_user -d pos_db"
+  },
+  "prisma": {
+    "schema": "backend/prisma/schema.prisma"
   },
   "engines": {
     "node": ">=20.19.0"
