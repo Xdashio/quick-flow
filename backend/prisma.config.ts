@@ -1,4 +1,12 @@
 import { defineConfig, env } from "prisma/config";
+import path from "node:path";
+import dotenv from "dotenv";
+
+// prisma.config.ts is loaded directly by the Prisma CLI and does NOT
+// auto-load .env the way schema-only projects do. Without this, migrate
+// deploy/status/generate silently fall back to the hardcoded local default
+// below, no matter what DATABASE_URL is set to in .env.
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 export default defineConfig({
   schema: "./prisma/schema.prisma",
