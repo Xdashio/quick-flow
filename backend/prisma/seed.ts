@@ -71,6 +71,71 @@ async function main() {
   }
 
   console.log(`[Seed] Updated ${allProducts.length} products with canonical Kenya tax categories.`);
+
+  // 3. Seed default store location & register
+  const location = await prisma.location.upsert({
+    where: { id: '11111111-1111-1111-1111-111111111111' },
+    update: { name: 'Main Store - Nairobi CBD' },
+    create: {
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Main Store - Nairobi CBD',
+      address: 'Kenyatta Avenue, Nairobi',
+    },
+  });
+
+  await prisma.register.upsert({
+    where: { id: '22222222-2222-2222-2222-222222222222' },
+    update: { name: 'POS Terminal 1', locationId: location.id },
+    create: {
+      id: '22222222-2222-2222-2222-222222222222',
+      name: 'POS Terminal 1',
+      locationId: location.id,
+    },
+  });
+
+  // 4. Seed default Admin/Manager account (username: admin, password: password123)
+  const bcrypt = await import('bcryptjs');
+  const pinHash = await bcrypt.default.hash('password123', 10);
+  const adminUser = await prisma.user.upsert({
+    where: { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' },
+    update: { name: 'admin', role: 'admin', active: true, pinHash },
+    create: {
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      name: 'admin',
+      role: 'admin',
+      active: true,
+      pinHash,
+    },
+  });
+  console.log(`[Seed] Admin user ready: '${adminUser.name}' (password: password123)`);
+
+  // 5. Seed sample Kenya retail products if empty
+  if (allProducts.length === 0) {
+    const sampleProducts = [
+      { sku: 'UNGA-001', barcode: '616110000001', name: 'Jogoo Maize Flour 2kg', priceCents: 18000, taxCategoryId: zeroRated.id },
+      { sku: 'MILK-002', barcode: '616110000002', name: 'Brookside Fresh Milk 500ml', priceCents: 6500, taxCategoryId: zeroRated.id },
+      { sku: 'BRD-003', barcode: '616110000003', name: 'Festive White Bread 400g', priceCents: 6500, taxCategoryId: exempt.id },
+      { sku: 'SODA-004', barcode: '616110000004', name: 'Coca-Cola 500ml PET', priceCents: 8000, taxCategoryId: standard.id },
+      { sku: 'SUG-005', barcode: '616110000005', name: 'Kabras Sugar 1kg', priceCents: 16000, taxCategoryId: zeroRated.id },
+      { sku: 'OIL-006', barcode: '616110000006', name: 'Rina Cooking Oil 1L', priceCents: 29000, taxCategoryId: standard.id },
+    ];
+    for (const p of sampleProducts) {
+      await prisma.product.upsert({
+        where: { sku: p.sku },
+        update: {},
+        create: {
+          sku: p.sku,
+          barcode: p.barcode,
+          name: p.name,
+          priceCents: p.priceCents,
+          taxCategoryId: p.taxCategoryId,
+          unitType: 'each',
+          active: true,
+        },
+      });
+    }
+    console.log(`[Seed] Seeded ${sampleProducts.length} sample Kenya retail items.`);
+  }
 }
 
 main()
