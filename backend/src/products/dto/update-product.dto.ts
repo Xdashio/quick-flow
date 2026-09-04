@@ -7,7 +7,6 @@ import {
   IsIn,
   MaxLength,
   Min,
-  IsNull,
 } from 'class-validator';
 
 export class UpdateProductDto {

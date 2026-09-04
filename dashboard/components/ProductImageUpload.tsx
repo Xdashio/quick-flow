@@ -1,0 +1,177 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
+const ACCEPTED_EXT = /\.(jpg|jpeg|png|webp|gif|avif)$/i;
+
+interface Props {
+  productId: string;
+  productName: string;
+  imageUrl: string | null;
+}
+
+export function ProductImageUpload({ productId, productName, imageUrl }: Props) {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState('');
+
+  const displayUrl = preview ?? imageUrl;
+
+  async function handleFileSelected(file: File) {
+    setError('');
+
+    if (!ACCEPTED_EXT.test(file.name)) {
+      setError('Use jpg, png, webp, gif, or avif');
+      return;
+    }
+
+    setUploading(true);
+    const localPreview = URL.createObjectURL(file);
+    setPreview(localPreview);
+
+    try {
+      // 1. Ask the backend for a pre-signed R2 upload URL
+      const presignRes = await fetch(
+        `${BACKEND}/api/products/${productId}/image/presign`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ filename: file.name }),
+        },
+      );
+
+      if (!presignRes.ok) {
+        const data = await presignRes.json().catch(() => ({}));
+        throw new Error(data.message ?? 'Failed to get upload URL');
+      }
+
+      const { uploadUrl, key } = await presignRes.json();
+
+      // 2. PUT the file directly to R2
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+
+      if (!putRes.ok) {
+        throw new Error('Upload to storage failed');
+      }
+
+      // 3. Persist the new imageKey on the product
+      const patchRes = await fetch(`${BACKEND}/api/products/${productId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ imageKey: key }),
+      });
+
+      if (!patchRes.ok) {
+        const data = await patchRes.json().catch(() => ({}));
+        throw new Error(data.message ?? 'Failed to save image');
+      }
+
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed');
+      setPreview(null);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function handleRemove() {
+    setError('');
+    setRemoving(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/products/${productId}/image`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? 'Failed to remove image');
+      }
+      setPreview(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove image');
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--radius-sm)',
+          overflow: 'hidden',
+          flexShrink: 0,
+          backgroundColor: 'var(--bg-surface-subtle)',
+          border: '1px solid var(--border-subtle)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {displayUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={displayUrl}
+            alt={productName}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>No image</span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ fontSize: 12, padding: '4px 10px' }}
+            disabled={uploading || removing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? 'Uploading…' : displayUrl ? 'Replace' : 'Upload'}
+          </button>
+          {displayUrl && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              style={{ fontSize: 12, padding: '4px 10px' }}
+              disabled={uploading || removing}
+              onClick={handleRemove}
+            >
+              {removing ? 'Removing…' : 'Remove'}
+            </button>
+          )}
+        </div>
+        {error && <span style={{ fontSize: 11, color: 'var(--accent-rose)' }}>{error}</span>}
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".jpg,.jpeg,.png,.webp,.gif,.avif"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileSelected(file);
+        }}
+      />
+    </div>
+  );
+}

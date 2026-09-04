@@ -413,8 +413,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       )}
                     </div>
 
-                    {/* Middle: Name, SKU, Barcode */}
+                    {/* Middle: Image, Name, SKU, Barcode */}
                     <div style={{ marginBottom: 12, flex: 1 }}>
+                      <ProductImage product={p} />
                       <h4
                         style={{
                           fontSize: 13,
