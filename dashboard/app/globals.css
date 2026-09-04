@@ -102,6 +102,36 @@ h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; color: var(--text-primar
 h2 { font-size: 16px; }
 h3 { font-size: 14px; }
 
+/* ─── Scrollbars ─────────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-primary);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* ─── Layout ─────────────────────────────────────────────────────────────── */
 .layout {
   display: flex;
@@ -555,6 +585,10 @@ tr:hover td {
   font-weight: 600;
   color: var(--text-primary);
   transition: all 0.15s ease;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .btn-primary {
   background: var(--accent-primary);

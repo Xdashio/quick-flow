@@ -16,8 +16,8 @@ export function DeactivateButton({ userId, userName, isActive, role }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Admins can't be deactivated by anyone — don't even open the modal.
-  const isLocked = role === 'admin' && isActive;
+  // Admins can't be deactivated or reactivated through this control — full stop.
+  const isLocked = role === 'admin';
   const action: 'deactivate' | 'reactivate' = isActive ? 'deactivate' : 'reactivate';
 
   function open() {

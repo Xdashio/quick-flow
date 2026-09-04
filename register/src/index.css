@@ -113,9 +113,14 @@ html, body, #root {
 }
 
 /* Custom minimal scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -123,12 +128,18 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
+  background-color: var(--border-strong);
   border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
+  background-color: var(--accent-primary);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* App Shell Container */

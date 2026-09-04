@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -58,7 +59,11 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto) {
-    await this.findOne(id); // throws 404 if not found
+    const existing = await this.findOne(id); // throws 404 if not found
+
+    if (existing.role === 'admin' && dto.active === false) {
+      throw new BadRequestException('Admin users cannot be deactivated');
+    }
 
     const data: Record<string, any> = {};
     if (dto.name !== undefined) data.name = dto.name;
