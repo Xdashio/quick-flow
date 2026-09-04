@@ -9,9 +9,12 @@ class SyncService {
     this.dbPath = options.dbPath || path.resolve(__dirname, "../data/pos.db");
     this.apiUrl = options.apiUrl || process.env.POS_API_URL || "http://localhost:3000/api";
     this.intervalMs = options.intervalMs || 30000;
+    this.offlineCheckIntervalMs = options.offlineCheckIntervalMs || 4000;
     this.checkoutQueue = options.checkoutQueue || null;
     this.timer = null;
+    this.probeTimer = null;
     this.isSyncing = false;
+    this.isCurrentlyOnline = null;
     this.listeners = [];
   }
 
@@ -33,6 +36,39 @@ class SyncService {
       } catch (err) {
         console.error("[SyncService] Listener error:", err);
       }
+    }
+  }
+
+  // Real network probe against backend health or catalog (anti-mock: real HTTP request)
+  async checkConnectivity() {
+    try {
+      const healthUrl = `${this.apiUrl}/health`;
+      const res = await fetch(healthUrl, {
+        method: "GET",
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) return true;
+    } catch {}
+
+    try {
+      const res2 = await fetch(`${this.apiUrl}/tax-categories`, {
+        method: "GET",
+        signal: AbortSignal.timeout(3000),
+      });
+      return res2.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // Triggered when OS/browser fires network online or probe detects recovery
+  async handleConnectivityChange(isOnline) {
+    const wasOnline = this.isCurrentlyOnline;
+    this.isCurrentlyOnline = isOnline;
+
+    if (isOnline && wasOnline === false) {
+      console.log("[SyncService] Network connectivity restored! Triggering immediate sync...");
+      return this.sync();
     }
   }
 
@@ -179,6 +215,7 @@ class SyncService {
         }
       }
 
+      this.isCurrentlyOnline = true;
       const pendingCount = this.checkoutQueue ? this.checkoutQueue.getPendingCount() : 0;
       const status = {
         success: true,
@@ -195,6 +232,7 @@ class SyncService {
       this.notifyListeners(status);
       return status;
     } catch (err) {
+      this.isCurrentlyOnline = false;
       console.warn("[SyncService] Sync failed (operating in offline cache mode):", err.message);
 
       if (db) {
@@ -285,6 +323,18 @@ class SyncService {
       );
     }, this.intervalMs);
 
+    // Active real-network connectivity probe when offline (adaptive reconnection detection)
+    if (this.probeTimer) clearInterval(this.probeTimer);
+    this.probeTimer = setInterval(async () => {
+      if (this.isCurrentlyOnline === false && !this.isSyncing) {
+        const canReach = await this.checkConnectivity();
+        if (canReach) {
+          console.log("[SyncService] Connectivity probe detected backend online!");
+          await this.handleConnectivityChange(true);
+        }
+      }
+    }, this.offlineCheckIntervalMs);
+
     return () => this.stop();
   }
 
@@ -292,8 +342,12 @@ class SyncService {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      console.log("[SyncService] Background sync interval stopped");
     }
+    if (this.probeTimer) {
+      clearInterval(this.probeTimer);
+      this.probeTimer = null;
+    }
+    console.log("[SyncService] Background sync interval stopped");
   }
 }
 

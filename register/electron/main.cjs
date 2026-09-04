@@ -162,6 +162,19 @@ function setupIpc() {
     return syncResult;
   });
 
+  // Real network connectivity check
+  ipcMain.handle("sync:check-connectivity", async () => {
+    if (!syncService) return false;
+    return syncService.checkConnectivity();
+  });
+
+  // Online transition notification from renderer
+  ipcMain.on("sync:network-online", () => {
+    if (syncService) {
+      syncService.handleConnectivityChange(true);
+    }
+  });
+
   // Cash checkout — offline-capable (Phase 4 primary flow)
   ipcMain.handle("checkout:cash", async (_event, payload) => {
     if (!checkoutQueue) throw new Error("CheckoutQueue not initialized");

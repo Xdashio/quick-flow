@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld("posApi", {
     ipcRenderer.invoke("sync:get-status"),
   triggerSync: () =>
     ipcRenderer.invoke("sync:trigger"),
+  checkConnectivity: () =>
+    ipcRenderer.invoke("sync:check-connectivity"),
+  notifyOnline: () =>
+    ipcRenderer.send("sync:network-online"),
   onSyncUpdate: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("sync:update", handler);

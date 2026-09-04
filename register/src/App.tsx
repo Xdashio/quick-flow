@@ -56,7 +56,17 @@ export default function App() {
       loadProducts();
     });
 
-    return () => unsubscribe();
+    const handleOnline = () => {
+      console.log("[App] Network online detected — notifying sync agent");
+      posApi.notifyOnline();
+      handleTriggerSync();
+    };
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("online", handleOnline);
+    };
   }, [loadProducts]);
 
   // Handle manual sync trigger

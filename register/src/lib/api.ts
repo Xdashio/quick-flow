@@ -9,6 +9,8 @@ declare global {
       getTaxCategories: () => Promise<CachedTaxCategory[]>;
       getSyncStatus: () => Promise<SyncStatus>;
       triggerSync: () => Promise<SyncStatus>;
+      checkConnectivity: () => Promise<boolean>;
+      notifyOnline: () => void;
       onSyncUpdate: (callback: (status: SyncStatus) => void) => () => void;
       completeCashSale: (payload: any) => Promise<any>;
       openDrawer: (args: any) => Promise<any>;
@@ -124,5 +126,22 @@ export const posApi = {
   async getPendingCount(): Promise<number> {
     if (window.posApi?.getPendingCount) return window.posApi.getPendingCount();
     return 0;
+  },
+
+  async checkConnectivity(): Promise<boolean> {
+    if (window.posApi?.checkConnectivity) return window.posApi.checkConnectivity();
+    try {
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+      const res = await fetch(`${apiUrl.replace(/\/api\/?$/, "")}/health`, { signal: AbortSignal.timeout(3000) });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  notifyOnline(): void {
+    if (window.posApi?.notifyOnline) {
+      window.posApi.notifyOnline();
+    }
   },
 };
