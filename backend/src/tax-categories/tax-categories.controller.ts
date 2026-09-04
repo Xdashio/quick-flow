@@ -11,6 +11,7 @@ import {
 import { TaxCategoriesService } from './tax-categories.service';
 import { CreateTaxCategoryDto } from './dto/create-tax-category.dto';
 import { UpdateTaxCategoryDto } from './dto/update-tax-category.dto';
+import { CalculateTaxDto } from './dto/calculate-tax.dto';
 
 @Controller('tax-categories')
 export class TaxCategoriesController {
@@ -19,6 +20,16 @@ export class TaxCategoriesController {
   @Post()
   create(@Body() dto: CreateTaxCategoryDto) {
     return this.service.create(dto);
+  }
+
+  @Post('calculate')
+  calculate(@Body() dto: CalculateTaxDto) {
+    return this.service.calculateTax(dto);
+  }
+
+  @Post('seed-standard')
+  seedStandard() {
+    return this.service.seedStandardCategories();
   }
 
   @Get()

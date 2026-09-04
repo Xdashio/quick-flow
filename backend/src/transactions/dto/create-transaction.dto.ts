@@ -18,22 +18,25 @@ export class CreateLineItemDto {
   @Min(0)
   quantity!: number;
 
+  @IsOptional()
   @IsInt()
   @Min(0)
-  unitPriceCents!: number;
+  unitPriceCents?: number;
 
+  @IsOptional()
   @IsInt()
   @Min(0)
-  taxRateBp!: number;
+  taxRateBp?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
   discountCents?: number;
 
+  @IsOptional()
   @IsInt()
   @Min(0)
-  lineTotalCents!: number;
+  lineTotalCents?: number;
 }
 
 export class CreateTransactionDto {

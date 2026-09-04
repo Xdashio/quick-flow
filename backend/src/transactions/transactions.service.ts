@@ -98,33 +98,52 @@ export class TransactionsService {
 
     const now = dto.createdAt ? new Date(dto.createdAt) : new Date();
 
-    // Compute totals if lineItems provided and totals not explicitly set – but always trust frozen values per blueprint
+    // Server-side tax calculation and freeze (§2.3 of blueprint)
     let subtotalCents = dto.subtotalCents ?? 0;
     let taxCents = dto.taxCents ?? 0;
     let totalCents = dto.totalCents ?? 0;
+    let lineItemsToCreate: any[] = [];
+
     if (dto.lineItems && dto.lineItems.length > 0) {
-      if (
-        dto.subtotalCents === undefined ||
-        dto.taxCents === undefined ||
-        dto.totalCents === undefined
-      ) {
-        // Derive from lineItems if not provided – lineTotal already includes tax? In blueprint lineTotalCents is final line total.
-        // We'll sum lineTotalCents for total, subtotal as sum of (unitPrice*qty - discount), tax as remainder.
-        const lineTotalSum = dto.lineItems.reduce(
-          (s, li) => s + li.lineTotalCents,
-          0,
-        );
-        // If totals missing, assume subtotal = sum of (unitPrice*qty - discount), tax = lineTotal - subtotal, total = lineTotal
-        // But simpler: if any total missing, default to lineTotalSum for total and 0 for tax/subtotal fallback
-        if (dto.totalCents === undefined) totalCents = lineTotalSum;
-        if (dto.subtotalCents === undefined) {
-          const subtotalCalc = dto.lineItems.reduce(
-            (s, li) => s + li.unitPriceCents * li.quantity - (li.discountCents ?? 0),
-            0,
-          );
-          subtotalCents = Math.round(subtotalCalc);
-        }
-        if (dto.taxCents === undefined) taxCents = totalCents - subtotalCents;
+      lineItemsToCreate = await Promise.all(
+        dto.lineItems.map(async (li) => {
+          const prod = await this.prisma.product.findUnique({
+            where: { id: li.productId },
+            include: { taxCategory: true },
+          });
+          if (!prod) {
+            throw new NotFoundException(`Product ${li.productId} not found`);
+          }
+
+          const unitPriceCents = li.unitPriceCents ?? prod.priceCents;
+          const taxRateBp = li.taxRateBp ?? (prod.taxCategory?.rateBp ?? 0);
+          const discountCents = li.discountCents ?? 0;
+          const quantity = Number(li.quantity);
+          const lineSubtotal = Math.round(unitPriceCents * quantity) - discountCents;
+          const lineTax = Math.round((lineSubtotal * taxRateBp) / 10000);
+          const lineTotal = li.lineTotalCents ?? (lineSubtotal + lineTax);
+
+          return {
+            productId: li.productId,
+            quantity: li.quantity,
+            unitPriceCents,
+            taxRateBp,
+            discountCents,
+            lineTotalCents: lineTotal,
+            lineSubtotal,
+            lineTax,
+          };
+        }),
+      );
+
+      if (dto.subtotalCents === undefined) {
+        subtotalCents = lineItemsToCreate.reduce((s, li) => s + li.lineSubtotal, 0);
+      }
+      if (dto.taxCents === undefined) {
+        taxCents = lineItemsToCreate.reduce((s, li) => s + li.lineTax, 0);
+      }
+      if (dto.totalCents === undefined) {
+        totalCents = subtotalCents + taxCents;
       }
     }
 
@@ -145,14 +164,14 @@ export class TransactionsService {
           parentTransactionId: dto.parentTransactionId ?? null,
           createdAt: now,
           syncedAt: new Date(),
-          lineItems: dto.lineItems
+          lineItems: lineItemsToCreate.length > 0
             ? {
-                create: dto.lineItems.map((li) => ({
+                create: lineItemsToCreate.map((li) => ({
                   productId: li.productId,
                   quantity: li.quantity,
                   unitPriceCents: li.unitPriceCents,
                   taxRateBp: li.taxRateBp,
-                  discountCents: li.discountCents ?? 0,
+                  discountCents: li.discountCents,
                   lineTotalCents: li.lineTotalCents,
                 })),
               }
