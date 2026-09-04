@@ -1,0 +1,212 @@
+// Prisma 7.10 — PostgreSQL 16
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────── Tax ─────────────────────
+model TaxCategory {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String    @db.VarChar(64)
+  rateBp    Int       @map("rate_bp") // basis points e.g. 1600 = 16%
+  products  Product[]
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("tax_categories")
+}
+
+// ───────────────────── Catalog ─────────────────────
+model ProductCategory {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String    @db.VarChar(255)
+  parentId  String?   @map("parent_id") @db.Uuid
+  products  Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku           String            @unique @db.VarChar(64)
+  barcode       String?           @db.VarChar(64)
+  name          String            @db.VarChar(255)
+  description   String?           @db.Text
+  unitType      String            @default("each") @map("unit_type") @db.VarChar(16)
+  isWeighed     Boolean           @default(false) @map("is_weighed")
+  priceCents    Int               @map("price_cents")
+  taxCategoryId String?           @map("tax_category_id") @db.Uuid
+  taxCategory   TaxCategory?      @relation(fields: [taxCategoryId], references: [id])
+  categoryId    String?           @map("category_id") @db.Uuid
+  category      ProductCategory?  @relation(fields: [categoryId], references: [id])
+  active        Boolean           @default(true)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+  lineItems     TransactionLineItem[]
+  movements     InventoryMovement[]
+
+  @@index([barcode])
+  @@map("products")
+}
+
+model Location {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  address     String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  registers   Register[]
+  transactions Transaction[]
+  movements   InventoryMovement[]
+
+  @@map("locations")
+}
+
+model Register {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId  String   @map("location_id") @db.Uuid
+  location    Location @relation(fields: [locationId], references: [id])
+  name        String   @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  transactions Transaction[]
+
+  @@map("registers")
+}
+
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(255)
+  pinHash   String   @map("pin_hash") @db.VarChar(255)
+  role      String   @db.VarChar(16) // cashier | manager | admin
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  movements InventoryMovement[]
+  transactions Transaction[]
+
+  @@map("users")
+}
+
+model Customer {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String?  @db.VarChar(255)
+  email         String?  @db.VarChar(255)
+  phone         String?  @db.VarChar(32)
+  loyaltyPoints Int      @default(0) @map("loyalty_points")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  transactions  Transaction[]
+
+  @@map("customers")
+}
+
+// ───────────────────── Transactions — state machine ─────────────────────
+// DRAFT → IN_PROGRESS → AWAITING_PAYMENT → PAYMENT_CAPTURED → COMPLETED
+model Transaction {
+  id                  String   @id @db.Uuid // client-generated for idempotent sync
+  locationId          String   @map("location_id") @db.Uuid
+  location            Location @relation(fields: [locationId], references: [id])
+  registerId          String?  @map("register_id") @db.Uuid
+  register            Register? @relation(fields: [registerId], references: [id])
+  cashierId           String?  @map("cashier_id") @db.Uuid
+  cashier             User?    @relation(fields: [cashierId], references: [id])
+  status              String   @db.VarChar(24)
+  subtotalCents       Int      @map("subtotal_cents")
+  taxCents            Int      @map("tax_cents")
+  totalCents          Int      @map("total_cents")
+  customerId          String?  @map("customer_id") @db.Uuid
+  customer            Customer? @relation(fields: [customerId], references: [id])
+  voidedReason        String?  @map("voided_reason") @db.Text
+  parentTransactionId String?  @map("parent_transaction_id") @db.Uuid
+  parentTransaction   Transaction? @relation("RefundChain", fields: [parentTransactionId], references: [id])
+  refunds             Transaction[] @relation("RefundChain")
+  createdAt           DateTime @map("created_at") @db.Timestamptz
+  syncedAt            DateTime? @map("synced_at") @db.Timestamptz
+  lineItems           TransactionLineItem[]
+  payments            Payment[]
+
+  @@index([status])
+  @@index([locationId])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model TransactionLineItem {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionId   String      @map("transaction_id") @db.Uuid
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId       String      @map("product_id") @db.Uuid
+  product         Product     @relation(fields: [productId], references: [id])
+  quantity        Decimal     @db.Decimal(10, 3)
+  unitPriceCents  Int         @map("unit_price_cents") // frozen at time of sale
+  taxRateBp       Int         @map("tax_rate_bp")       // frozen at time of sale
+  discountCents   Int         @default(0) @map("discount_cents")
+  lineTotalCents  Int         @map("line_total_cents")
+
+  @@index([transactionId])
+  @@map("transaction_line_items")
+}
+
+model Payment {
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionId       String      @map("transaction_id") @db.Uuid
+  transaction         Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  method              String      @db.VarChar(16) // cash | mpesa_stk | mpesa_till | store_credit
+  amountCents         Int         @map("amount_cents")
+  mpesaReceiptNumber  String?     @map("mpesa_receipt_number") @db.VarChar(32)
+  mpesaPhoneNumber    String?     @map("mpesa_phone_number") @db.VarChar(16)
+  checkoutRequestId   String?     @map("checkout_request_id") @db.VarChar(64)
+  etimsInvoiceNumber  String?     @map("etims_invoice_number") @db.VarChar(64)
+  status              String      @db.VarChar(24) // pending | awaiting_confirmation | captured | failed | refunded
+
+  @@index([transactionId])
+  @@index([checkoutRequestId])
+  @@map("payments")
+}
+
+// ───────────────────── Inventory — append-only ledger ─────────────────────
+model InventoryMovement {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  product      Product  @relation(fields: [productId], references: [id])
+  locationId   String   @map("location_id") @db.Uuid
+  location     Location @relation(fields: [locationId], references: [id])
+  quantityDelta Decimal @map("quantity_delta") @db.Decimal(10, 3) // signed
+  reason       String   @db.VarChar(32) // sale | return | receiving | shrinkage | adjustment | waste
+  referenceId  String?  @map("reference_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdBy    String?  @map("created_by") @db.Uuid
+  creator      User?    @relation(fields: [createdBy], references: [id])
+
+  @@index([productId, locationId])
+  @@index([createdAt])
+  @@map("inventory_movements")
+}
+
+// ───────────────────── Audit + Drawer ─────────────────────
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId     String?  @map("actor_id") @db.Uuid
+  action      String   @db.VarChar(64)
+  entityType  String   @map("entity_type") @db.VarChar(64)
+  entityId    String?  @map("entity_id") @db.Uuid
+  reason      String?  @db.Text
+  metadata    Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model DrawerEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registerId String?  @map("register_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  reason     String   @db.VarChar(32) // sale | no_sale | manager_override | change
+  amountCents Int?    @map("amount_cents")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt])
+  @@map("drawer_events")
+}

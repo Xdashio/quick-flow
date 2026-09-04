@@ -1,0 +1,26 @@
+{
+  "name": "pos-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Kenya M-Pesa-first POS — monorepo (NestJS backend, Electron register, Next.js dashboard, shared types)",
+  "workspaces": [
+    "shared",
+    "backend",
+    "register",
+    "dashboard"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:register": "npm run dev --workspace=register",
+    "dev:dashboard": "npm run dev --workspace=dashboard",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:ready": "pg_isready -h localhost -p 5432 -U pos_user -d pos_db"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "packageManager": "npm@11.19.0"
+}
