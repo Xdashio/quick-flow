@@ -31,7 +31,11 @@ export function posDbPlugin(): Plugin {
       // Start background sync job in Vite dev server
       syncService = new SyncService({
         dbPath,
-        apiUrl: process.env.POS_API_URL || "http://localhost:3000/api",
+        apiUrls: [
+          process.env.POS_API_URL,
+          "http://localhost:3000/api",
+          "https://quickflow-backend.up.railway.app/api",
+        ].filter(Boolean),
         intervalMs: 30000,
       });
       syncService.start();

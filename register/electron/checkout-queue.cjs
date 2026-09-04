@@ -17,6 +17,12 @@ class CheckoutQueue {
     this.virtualDir = this.printer.virtualDir;
   }
 
+  // Called by SyncService each sync tick so we always POST to the same
+  // backend that just won the failover race.
+  setApiUrl(url) {
+    if (url) this.apiUrl = url;
+  }
+
   getDb() {
     fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
     const db = new Database(this.dbPath);

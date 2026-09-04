@@ -327,7 +327,11 @@ app.whenReady().then(() => {
   });
   checkoutQueue = new CheckoutQueue({
     dbPath,
-    apiUrl: process.env.POS_API_URL || "http://localhost:3000/api",
+    apiUrls: [
+      process.env.POS_API_URL,
+      "http://localhost:3000/api",
+      "https://quickflow-backend.up.railway.app/api",
+    ].filter(Boolean),
     virtualDir: path.join(__dirname, "../data/virtual-printer"),
   });
 
@@ -336,7 +340,11 @@ app.whenReady().then(() => {
   // Initialize and start background sync service
   syncService = new SyncService({
     dbPath,
-    apiUrl: process.env.POS_API_URL || "http://localhost:3000/api",
+    apiUrls: [
+      process.env.POS_API_URL,
+      "http://localhost:3000/api",
+      "https://quickflow-backend.up.railway.app/api",
+    ].filter(Boolean),
     intervalMs: 30000,
     checkoutQueue, // inject for flush on each sync tick
   });

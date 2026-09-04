@@ -4,10 +4,23 @@ const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
 
+// Backend URLs to try, in order. Explicit env wins; otherwise prefer the
+// local dev backend, then fall back to the deployed one so a register with
+// a missing/down local backend still syncs. Network failures trigger failover.
+const API_URL_CANDIDATES = [
+  process.env.POS_API_URL,
+  "http://localhost:3000/api",
+  "https://quickflow-backend.up.railway.app/api",
+].filter(Boolean);
+
 class SyncService {
   constructor(options = {}) {
     this.dbPath = options.dbPath || path.resolve(__dirname, "../data/pos.db");
-    this.apiUrl = options.apiUrl || process.env.POS_API_URL || "http://localhost:3000/api";
+    this.apiUrls =
+      options.apiUrls ||
+      (options.apiUrl ? [options.apiUrl] : null) ||
+      API_URL_CANDIDATES;
+    this.apiUrl = this.apiUrls[0]; // current active backend
     this.intervalMs = options.intervalMs || 30000;
     this.offlineCheckIntervalMs = options.offlineCheckIntervalMs || 4000;
     this.checkoutQueue = options.checkoutQueue || null;
@@ -41,26 +54,26 @@ class SyncService {
     }
   }
 
-  // Real network probe against backend health or catalog (anti-mock: real HTTP request)
+  // Real network probe against any candidate backend (used for reconnection detection)
   async checkConnectivity() {
-    try {
-      const healthUrl = `${this.apiUrl}/health`;
-      const res = await fetch(healthUrl, {
-        method: "GET",
-        signal: AbortSignal.timeout(3000),
-      });
-      if (res.ok) return true;
-    } catch {}
+    for (const url of this.apiUrls) {
+      try {
+        const res = await fetch(`${url}/health`, {
+          method: "GET",
+          signal: AbortSignal.timeout(3000),
+        });
+        if (res.ok) return true;
+      } catch {}
 
-    try {
-      const res2 = await fetch(`${this.apiUrl}/tax-categories`, {
-        method: "GET",
-        signal: AbortSignal.timeout(3000),
-      });
-      return res2.ok;
-    } catch {
-      return false;
+      try {
+        const res2 = await fetch(`${url}/tax-categories`, {
+          method: "GET",
+          signal: AbortSignal.timeout(3000),
+        });
+        if (res2.ok) return true;
+      } catch {}
     }
+    return false;
   }
 
   // Triggered when OS/browser fires network online or probe detects recovery
@@ -81,38 +94,80 @@ class SyncService {
     }
 
     this.isSyncing = true;
-    console.log(`[SyncService] Starting sync against ${this.apiUrl}...`);
+    let lastErr = null;
+    try {
+      // Try each candidate backend in order; first one with reachable network wins.
+      for (const url of this.apiUrls) {
+        try {
+          return await this.syncAgainst(url);
+        } catch (err) {
+          lastErr = err;
+          if (err.statusCode && err.statusCode < 500) {
+            // 4xx (e.g. auth) — the backend is reachable but refusing us; don't
+            // fall through to another URL in that case.
+            break;
+          }
+          console.warn(`[SyncService] ${url} unreachable (${err.message}), trying next backend...`);
+        }
+      }
+      throw lastErr || new Error("No backend URL configured");
+    } catch (err) {
+      this.isCurrentlyOnline = false;
+      console.warn("[SyncService] Sync failed (operating in offline cache mode):", err.message);
+      this.recordErrorMeta(err.message);
+      const status = this.getStatus(null, err.message);
+      this.notifyListeners(status);
+      return status;
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  recordErrorMeta(message) {
+    let db;
+    try {
+      db = this.getDb();
+      const setMeta = db.prepare(`
+        INSERT INTO sync_meta (key, value, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = datetime('now')
+      `);
+      setMeta.run("last_sync_status", "error");
+      setMeta.run("error_message", message);
+    } catch (metaErr) {
+      console.error("[SyncService] Failed to record error metadata:", metaErr);
+    } finally {
+      if (db) db.close();
+    }
+  }
+
+  async syncAgainst(apiUrl) {
+    console.log(`[SyncService] Starting sync against ${apiUrl}...`);
 
     let db;
     try {
       db = this.getDb();
 
-      // 1. Fetch Tax Categories
-      const taxRes = await fetch(`${this.apiUrl}/tax-categories`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!taxRes.ok) {
-        throw new Error(`Tax categories fetch failed with status ${taxRes.status}`);
-      }
-      const taxCategories = await taxRes.json();
+      // Fetch all three resources, propagating HTTP status when the server responds.
+      const fetchCatalog = async (path) => {
+        const res = await fetch(`${apiUrl}${path}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) {
+          const err = new Error(`GET ${path} failed with status ${res.status}`);
+          err.statusCode = res.status;
+          throw err;
+        }
+        return res.json();
+      };
 
-      // 2. Fetch Products
-      const prodRes = await fetch(`${this.apiUrl}/products`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!prodRes.ok) {
-        throw new Error(`Products fetch failed with status ${prodRes.status}`);
-      }
-      const products = await prodRes.json();
-
-      // 2b. Fetch Categories
-      const catRes = await fetch(`${this.apiUrl}/categories`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!catRes.ok) {
-        throw new Error(`Categories fetch failed with status ${catRes.status}`);
-      }
-      const categories = await catRes.json();
+      const [taxCategories, products, categories] = await Promise.all([
+        fetchCatalog("/tax-categories"),
+        fetchCatalog("/products"),
+        fetchCatalog("/categories"),
+      ]);
 
       // 3. Upsert Tax Categories
       const upsertTax = db.prepare(`
@@ -268,10 +323,11 @@ class SyncService {
         `[SyncService] Sync complete. Products: ${counts.productsCount}, Tax categories: ${counts.taxCategoriesCount}`
       );
 
-      // Flush queued cash sales
+      // Flush queued cash sales against the same backend that just won this sync.
       let pendingFlush = null;
       if (this.checkoutQueue) {
         try {
+          this.checkoutQueue.setApiUrl(this.apiUrl);
           pendingFlush = await this.checkoutQueue.flushPending();
           if (pendingFlush.flushed > 0) {
             console.log(`[SyncService] Flushed queued transactions: ${JSON.stringify(pendingFlush)}`);
@@ -282,6 +338,7 @@ class SyncService {
       }
 
       this.isCurrentlyOnline = true;
+      this.apiUrl = apiUrl; // stick to whichever backend won the race
       const pendingCount = this.checkoutQueue ? this.checkoutQueue.getPendingCount() : 0;
       const status = {
         success: true,
@@ -298,31 +355,10 @@ class SyncService {
       this.notifyListeners(status);
       return status;
     } catch (err) {
-      this.isCurrentlyOnline = false;
-      console.warn("[SyncService] Sync failed (operating in offline cache mode):", err.message);
-
-      if (db) {
-        try {
-          const setMeta = db.prepare(`
-            INSERT INTO sync_meta (key, value, updated_at)
-            VALUES (?, ?, datetime('now'))
-            ON CONFLICT(key) DO UPDATE SET
-              value = excluded.value,
-              updated_at = datetime('now')
-          `);
-          setMeta.run("last_sync_status", "error");
-          setMeta.run("error_message", err.message);
-        } catch (metaErr) {
-          console.error("[SyncService] Failed to record error metadata:", metaErr);
-        }
-      }
-
-      const status = this.getStatus(db, err.message);
-      this.notifyListeners(status);
-      return status;
+      // Rethrow — sync() above decides whether to try the next backend.
+      throw err;
     } finally {
       if (db) db.close();
-      this.isSyncing = false;
     }
   }
 
