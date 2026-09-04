@@ -19,6 +19,14 @@ export function posDbPlugin(): Plugin {
   return {
     name: "vite-plugin-pos-db",
     configureServer(server) {
+      // Ensure the offline-cache schema exists before SyncService touches it.
+      // Without this, a fresh checkout (no data/pos.db) crashes on the first
+      // sync attempt with "no such table: sync_meta".
+      const { applySchema } = require("./electron/db-schema.cjs");
+      const initDb = getDb();
+      applySchema(initDb);
+      initDb.close();
+
       const SyncService = require("./electron/sync-service.cjs");
       // Start background sync job in Vite dev server
       syncService = new SyncService({

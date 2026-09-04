@@ -22,58 +22,7 @@ function getDb() {
 
 function initDb() {
   const db = getDb();
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS tax_categories (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      rate_bp INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS categories (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      parent_id TEXT
-    );
-    CREATE TABLE IF NOT EXISTS products (
-      id TEXT PRIMARY KEY,
-      sku TEXT UNIQUE NOT NULL,
-      barcode TEXT,
-      name TEXT NOT NULL,
-      description TEXT,
-      unit_type TEXT NOT NULL DEFAULT 'each',
-      is_weighed INTEGER NOT NULL DEFAULT 0,
-      price_cents INTEGER NOT NULL,
-      tax_category_id TEXT REFERENCES tax_categories(id),
-      category_id TEXT,
-      active INTEGER NOT NULL DEFAULT 1,
-      image_key TEXT,
-      image_cached_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
-    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
-    CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
-
-    CREATE TABLE IF NOT EXISTS pending_transactions (
-      id TEXT PRIMARY KEY,
-      payload TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending_sync',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS sync_meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  // Idempotent migration: add image columns to existing DBs that pre-date this feature
-  try {
-    db.exec(`ALTER TABLE products ADD COLUMN image_key TEXT`);
-  } catch (_) { /* column already exists */ }
-  try {
-    db.exec(`ALTER TABLE products ADD COLUMN image_cached_at TEXT`);
-  } catch (_) { /* column already exists */ }
-
+  require("./db-schema.cjs").applySchema(db);
   db.close();
 
   // Ensure the image cache directory exists

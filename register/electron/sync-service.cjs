@@ -21,7 +21,9 @@ class SyncService {
   getDb() {
     fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
     const db = new Database(this.dbPath);
-    db.pragma("journal_mode = WAL");
+    // Hardening: if any caller ever bypasses the plugin/main init (tests,
+    // ad-hoc scripts), make sure the schema is there before we sync.
+    require("./db-schema.cjs").applySchema(db);
     return db;
   }
 
