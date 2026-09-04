@@ -124,9 +124,11 @@ function setupIpc() {
     try {
       return db
         .prepare(
-          `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+          `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp,
+                  c.name as category_name
            FROM products p
            LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+           LEFT JOIN categories c ON p.category_id = c.id
            WHERE p.active = 1 AND p.barcode = ?
            LIMIT 1`
         )
@@ -142,9 +144,11 @@ function setupIpc() {
     try {
       return db
         .prepare(
-          `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+          `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp,
+                  c.name as category_name
            FROM products p
            LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+           LEFT JOIN categories c ON p.category_id = c.id
            WHERE p.active = 1
            ORDER BY p.name ASC`
         )
@@ -160,6 +164,18 @@ function setupIpc() {
     try {
       return db
         .prepare(`SELECT * FROM tax_categories ORDER BY rate_bp DESC`)
+        .all();
+    } finally {
+      db.close();
+    }
+  });
+
+  // Get categories from SQLite cache
+  ipcMain.handle("db:get-categories", async () => {
+    const db = getDb();
+    try {
+      return db
+        .prepare(`SELECT * FROM categories ORDER BY name ASC`)
         .all();
     } finally {
       db.close();

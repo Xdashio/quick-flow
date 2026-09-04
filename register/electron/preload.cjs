@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("posApi", {
     ipcRenderer.invoke("db:get-all-products"),
   getTaxCategories: () =>
     ipcRenderer.invoke("db:get-tax-categories"),
+  getCategories: () =>
+    ipcRenderer.invoke("db:get-categories"),
 
   // Sync Operations
   getSyncStatus: () =>

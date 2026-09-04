@@ -18,12 +18,19 @@ export interface CachedProduct {
   updated_at: string;
   tax_category_name?: string | null;
   tax_category_rate_bp?: number | null;
+  category_name?: string | null;
 }
 
 export interface CachedTaxCategory {
   id: string;
   name: string;
   rate_bp: number; // e.g. 1600 = 16.00%
+}
+
+export interface CachedCategory {
+  id: string;
+  name: string;
+  parent_id: string | null;
 }
 
 export interface SyncStatus {

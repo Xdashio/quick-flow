@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import type { CachedProduct } from "../lib/types";
+import type { CachedCategory, CachedProduct } from "../lib/types";
 import { formatCurrency, formatTaxRate } from "../lib/cart";
 import { IconBarcode, IconScale, IconSearch, IconClose, IconPlus } from "./icons";
 import { posApi } from "../lib/api";
@@ -83,6 +83,7 @@ const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
 
 interface ProductCatalogProps {
   products: CachedProduct[];
+  categories?: CachedCategory[];
   onAddToCart: (product: CachedProduct) => void;
   onBarcodeSubmit: (barcode: string) => Promise<boolean>;
   isLoading: boolean;
@@ -90,12 +91,14 @@ interface ProductCatalogProps {
 
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   products,
+  categories = [],
   onAddToCart,
   onBarcodeSubmit,
   isLoading,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -122,6 +125,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       (p.barcode && p.barcode.includes(q));
 
     if (!matchesQuery) return false;
+
+    if (selectedCategoryId !== "all" && p.category_id !== selectedCategoryId) return false;
 
     if (selectedFilter === "all") return true;
     if (selectedFilter === "weighed") return Boolean(p.is_weighed);
@@ -263,6 +268,51 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             );
           })}
         </div>
+
+        {/* Category Pills */}
+        {categories.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 8,
+              overflowX: "auto",
+              scrollbarWidth: "none",
+            }}
+          >
+            {[{ id: "all", name: "All Categories" }, ...categories].map((cat) => {
+              const isActive = selectedCategoryId === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategoryId(cat.id)}
+                  style={{
+                    padding: "5px 14px",
+                    borderRadius: "var(--radius-pill)",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    backgroundColor: isActive
+                      ? "var(--accent-sage-bg)"
+                      : "var(--bg-surface-elevated)",
+                    color: isActive
+                      ? "var(--accent-sage)"
+                      : "var(--text-secondary)",
+                    border: `1px solid ${
+                      isActive ? "rgba(141, 161, 115, 0.35)" : "var(--border-subtle)"
+                    }`,
+                    transition: "all 0.18s var(--ease-spring)",
+                  }}
+                >
+                  {cat.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Catalog Grid Area */}

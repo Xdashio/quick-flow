@@ -1,4 +1,4 @@
-import type { CachedProduct, CachedTaxCategory, SyncStatus } from "./types";
+import type { CachedCategory, CachedProduct, CachedTaxCategory, SyncStatus } from "./types";
 
 declare global {
   interface Window {
@@ -7,6 +7,7 @@ declare global {
       getProductByBarcode: (barcode: string) => Promise<CachedProduct | null>;
       getAllProducts: () => Promise<CachedProduct[]>;
       getTaxCategories: () => Promise<CachedTaxCategory[]>;
+      getCategories: () => Promise<CachedCategory[]>;
       getSyncStatus: () => Promise<SyncStatus>;
       triggerSync: () => Promise<SyncStatus>;
       checkConnectivity: () => Promise<boolean>;
@@ -66,6 +67,15 @@ export const posApi = {
     }
     const res = await fetch("/api/local-sqlite/tax-categories");
     if (!res.ok) throw new Error(`Get tax categories failed: ${res.statusText}`);
+    return res.json();
+  },
+
+  async getCategories(): Promise<CachedCategory[]> {
+    if (window.posApi) {
+      return window.posApi.getCategories();
+    }
+    const res = await fetch("/api/local-sqlite/categories");
+    if (!res.ok) throw new Error(`Get categories failed: ${res.statusText}`);
     return res.json();
   },
 

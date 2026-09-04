@@ -47,9 +47,11 @@ export function posDbPlugin(): Plugin {
               if (barcode) {
                 const item = db
                   .prepare(
-                    `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+                    `SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp,
+                            c.name as category_name
                      FROM products p
                      LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+                     LEFT JOIN categories c ON p.category_id = c.id
                      WHERE p.active = 1 AND p.barcode = ? LIMIT 1`
                   )
                   .get(barcode);
@@ -58,9 +60,11 @@ export function posDbPlugin(): Plugin {
               }
 
               let sql = `
-                SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp
+                SELECT p.*, tc.name as tax_category_name, tc.rate_bp as tax_category_rate_bp,
+                       c.name as category_name
                 FROM products p
                 LEFT JOIN tax_categories tc ON p.tax_category_id = tc.id
+                LEFT JOIN categories c ON p.category_id = c.id
                 WHERE p.active = 1
               `;
               const params: any[] = [];
@@ -92,6 +96,19 @@ export function posDbPlugin(): Plugin {
             try {
               const rows = db
                 .prepare(`SELECT * FROM tax_categories ORDER BY rate_bp DESC`)
+                .all();
+              res.end(JSON.stringify(rows));
+              return;
+            } finally {
+              db.close();
+            }
+          }
+
+          if (url.pathname === "/api/local-sqlite/categories") {
+            const db = getDb();
+            try {
+              const rows = db
+                .prepare(`SELECT * FROM categories ORDER BY name ASC`)
                 .all();
               res.end(JSON.stringify(rows));
               return;

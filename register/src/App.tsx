@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { posApi } from "./lib/api";
-import type { CachedProduct, CartItem, SyncStatus } from "./lib/types";
+import type { CachedCategory, CachedProduct, CartItem, SyncStatus } from "./lib/types";
 import { createCartItem, updateItemQuantity, calculateCartTotals, formatCurrency } from "./lib/cart";
 import { Header } from "./components/Header";
 import { ProductCatalog } from "./components/ProductCatalog";
@@ -15,6 +15,7 @@ export default function App() {
     return (localStorage.getItem("pos-theme") as "dark" | "light") || "dark";
   });
   const [products, setProducts] = useState<CachedProduct[]>([]);
+  const [categories, setCategories] = useState<CachedCategory[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -45,15 +46,27 @@ export default function App() {
     }
   }, []);
 
+  // Load categories from local SQLite cache
+  const loadCategories = useCallback(async () => {
+    try {
+      const items = await posApi.getCategories();
+      setCategories(items);
+    } catch (err) {
+      console.error("[App] Failed to load categories from local SQLite cache:", err);
+    }
+  }, []);
+
   // Load initial state and subscribe to background sync updates
   useEffect(() => {
     loadProducts();
+    loadCategories();
 
     posApi.getSyncStatus().then(setSyncStatus).catch(console.warn);
 
     const unsubscribe = posApi.onSyncUpdate((status) => {
       setSyncStatus(status);
       loadProducts();
+      loadCategories();
     });
 
     const handleOnline = () => {
@@ -67,7 +80,7 @@ export default function App() {
       unsubscribe();
       window.removeEventListener("online", handleOnline);
     };
-  }, [loadProducts]);
+  }, [loadProducts, loadCategories]);
 
   // Handle manual sync trigger
   const handleTriggerSync = async () => {
@@ -76,6 +89,7 @@ export default function App() {
       const result = await posApi.triggerSync();
       setSyncStatus(result);
       await loadProducts();
+      await loadCategories();
     } catch (err: any) {
       console.error("[App] Manual sync trigger failed:", err);
     }
@@ -223,6 +237,7 @@ export default function App() {
         <main className="pos-catalog-pane">
           <ProductCatalog
             products={products}
+            categories={categories}
             onAddToCart={handleAddToCart}
             onBarcodeSubmit={handleBarcodeSubmit}
             isLoading={isLoadingProducts}

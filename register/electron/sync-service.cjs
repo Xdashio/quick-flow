@@ -103,6 +103,15 @@ class SyncService {
       }
       const products = await prodRes.json();
 
+      // 2b. Fetch Categories
+      const catRes = await fetch(`${this.apiUrl}/categories`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!catRes.ok) {
+        throw new Error(`Categories fetch failed with status ${catRes.status}`);
+      }
+      const categories = await catRes.json();
+
       // 3. Upsert Tax Categories
       const upsertTax = db.prepare(`
         INSERT INTO tax_categories (id, name, rate_bp)
@@ -122,6 +131,36 @@ class SyncService {
         }
       });
       upsertAllTaxes(taxCategories);
+
+      // 3b. Upsert Categories
+      const upsertCategory = db.prepare(`
+        INSERT INTO categories (id, name, parent_id)
+        VALUES (@id, @name, @parent_id)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          parent_id = excluded.parent_id
+      `);
+
+      const remoteCategoryIds = new Set(categories.map((c) => c.id));
+      const upsertAllCategories = db.transaction((cats) => {
+        for (const c of cats) {
+          upsertCategory.run({
+            id: c.id,
+            name: c.name,
+            parent_id: c.parentId ?? c.parent_id ?? null,
+          });
+        }
+
+        // Remove local categories no longer present on backend
+        const localCategories = db.prepare(`SELECT id FROM categories`).all();
+        const deleteCatStmt = db.prepare(`DELETE FROM categories WHERE id = ?`);
+        for (const lc of localCategories) {
+          if (!remoteCategoryIds.has(lc.id)) {
+            deleteCatStmt.run(lc.id);
+          }
+        }
+      });
+      upsertAllCategories(categories);
 
       // 4. Upsert Products
       const upsertProduct = db.prepare(`
