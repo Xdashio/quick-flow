@@ -3,7 +3,7 @@
 ![CI](https://github.com/Xdashio/quick-flow/actions/workflows/ci.yml/badge.svg)
 ![Release](https://github.com/Xdashio/quick-flow/actions/workflows/release.yml/badge.svg)
 
-Offline-first point of sale for single-location retail/grocery. Cash is first-class, M-Pesa via Daraja STK Push, KRA eTIMS-ready. The till keeps selling with no network and syncs when back online.
+Offline-first point of sale for single-location retail/grocery. Cash is first-class, M-Pesa via Daraja STK Push,The till keeps selling with no network and syncs when back online.
 
 ![Register catalog](docs/images/register-catalog.png)
 
