@@ -1,0 +1,17 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/_global-error/page": "/_global-error",
+  "/api/auth/login/route": "/api/auth/login",
+  "/api/auth/logout/route": "/api/auth/logout",
+  "/api/proxy/[...path]/route": "/api/proxy/[...path]",
+  "/page": "/",
+  "/(dashboard)/page": "/",
+  "/(dashboard)/categories/page": "/categories",
+  "/(dashboard)/overview/page": "/overview",
+  "/(dashboard)/products/page": "/products",
+  "/(dashboard)/users/page": "/users",
+  "/login/page": "/login",
+  "/(dashboard)/drawer/page": "/drawer",
+  "/(dashboard)/inventory/page": "/inventory",
+  "/(dashboard)/payments/page": "/payments"
+}
