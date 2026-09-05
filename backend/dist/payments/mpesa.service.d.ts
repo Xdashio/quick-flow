@@ -46,14 +46,14 @@ export declare class MpesaService {
         darajaResponse: DarajaStkPushResponse;
         payment: {
             id: string;
-            status: string;
-            transactionId: string;
             method: string;
             amountCents: number;
             mpesaReceiptNumber: string | null;
             mpesaPhoneNumber: string | null;
             checkoutRequestId: string | null;
             etimsInvoiceNumber: string | null;
+            status: string;
+            transactionId: string;
         };
     }>;
     handleCallback(body: Record<string, any>): Promise<{
@@ -61,85 +61,85 @@ export declare class MpesaService {
     }>;
     createTillPayment(transactionId: string, mpesaCode: string, amountCents: number): Promise<{
         id: string;
-        status: string;
-        transactionId: string;
         method: string;
         amountCents: number;
         mpesaReceiptNumber: string | null;
         mpesaPhoneNumber: string | null;
         checkoutRequestId: string | null;
         etimsInvoiceNumber: string | null;
+        status: string;
+        transactionId: string;
     }>;
     getPaymentStatus(id: string): Promise<{
         transaction: {
             lineItems: ({
                 product: {
+                    id: string;
                     name: string;
+                    createdAt: Date;
                     sku: string;
                     barcode: string | null;
                     description: string | null;
                     unitType: string;
                     isWeighed: boolean;
                     priceCents: number;
-                    costCents: number | null;
                     taxCategoryId: string | null;
                     categoryId: string | null;
-                    active: boolean;
                     imageKey: string | null;
                     reorderPoint: number | null;
-                    id: string;
-                    createdAt: Date;
+                    costCents: number | null;
+                    active: boolean;
                     updatedAt: Date;
                 };
             } & {
                 id: string;
+                transactionId: string;
                 productId: string;
                 quantity: import("@prisma/client-runtime-utils").Decimal;
                 unitPriceCents: number;
-                discountCents: number;
-                taxRateBp: number;
-                lineTotalCents: number;
                 unitCostCents: number | null;
-                transactionId: string;
+                taxRateBp: number;
+                discountCents: number;
+                lineTotalCents: number;
             })[];
         } & {
             id: string;
-            createdAt: Date;
+            status: string;
             locationId: string;
             registerId: string | null;
             cashierId: string | null;
-            customerId: string | null;
-            status: string;
             subtotalCents: number;
             taxCents: number;
             totalCents: number;
+            customerId: string | null;
             voidedReason: string | null;
             parentTransactionId: string | null;
+            createdAt: Date;
             syncedAt: Date | null;
         };
     } & {
         id: string;
-        status: string;
-        transactionId: string;
         method: string;
         amountCents: number;
         mpesaReceiptNumber: string | null;
         mpesaPhoneNumber: string | null;
         checkoutRequestId: string | null;
         etimsInvoiceNumber: string | null;
+        status: string;
+        transactionId: string;
     }>;
     reconcileTillPayment(paymentId: string): Promise<{
         message: string;
         payment: {
             id: string;
-            status: string;
-            transactionId: string;
             method: string;
             amountCents: number;
             mpesaReceiptNumber: string | null;
             mpesaPhoneNumber: string | null;
             checkoutRequestId: string | null;
             etimsInvoiceNumber: string | null;
+            status: string;
+            transactionId: string;
         };
         requiresManualReconciliation?: undefined;
         darajaResponse?: undefined;
@@ -147,14 +147,14 @@ export declare class MpesaService {
         message: string;
         payment: {
             id: string;
-            status: string;
-            transactionId: string;
             method: string;
             amountCents: number;
             mpesaReceiptNumber: string | null;
             mpesaPhoneNumber: string | null;
             checkoutRequestId: string | null;
             etimsInvoiceNumber: string | null;
+            status: string;
+            transactionId: string;
         };
         requiresManualReconciliation: boolean;
         darajaResponse?: undefined;
@@ -162,14 +162,14 @@ export declare class MpesaService {
         message: string;
         payment: {
             id: string;
-            status: string;
-            transactionId: string;
             method: string;
             amountCents: number;
             mpesaReceiptNumber: string | null;
             mpesaPhoneNumber: string | null;
             checkoutRequestId: string | null;
             etimsInvoiceNumber: string | null;
+            status: string;
+            transactionId: string;
         };
         darajaResponse: DarajaStkQueryResponse;
         requiresManualReconciliation?: undefined;
