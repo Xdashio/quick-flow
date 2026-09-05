@@ -17,7 +17,7 @@
     "rootDir": "./src",
     "incremental": true,
     "removeComments": true,
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
     "baseUrl": "./",
     "paths": {
       "@pos/shared": ["../shared/src"]
