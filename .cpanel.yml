@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/bin/echo
+    - /bin/echo "quick-flow repo ready for Node.js App"
