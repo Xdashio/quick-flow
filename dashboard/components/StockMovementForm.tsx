@@ -82,8 +82,13 @@ export function StockMovementForm({ products, locations, initialProductId }: Pro
         return;
       }
 
+      const data = await res.json().catch(() => null);
+      const newBalance = data?.currentStock?.quantity;
       const product = products.find((p) => p.id === productId);
-      setSuccess(`Recorded ${signedQty > 0 ? '+' : ''}${signedQty} for ${product?.name ?? 'product'}`);
+      const balanceNote = newBalance !== undefined ? ` — new balance: ${Number(newBalance)}` : '';
+      setSuccess(
+        `Recorded ${signedQty > 0 ? '+' : ''}${signedQty} for ${product?.name ?? 'product'}${balanceNote}`,
+      );
       setQuantity('');
       router.refresh();
     } catch {
