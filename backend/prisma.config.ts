@@ -11,7 +11,7 @@ dotenv.config({ path: path.resolve(__dirname, ".env") });
 export default defineConfig({
   schema: "./prisma/schema.prisma",
   migrate: {
-    // datasource URL for migrate/db push comes from here in Prisma 7
+    seed: "ts-node prisma/seed.ts",
   },
   // Prisma 7 requires datasource.url in config for migrate operations
   // @ts-ignore — type may vary by version; env() reads DATABASE_URL from .env
