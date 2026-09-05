@@ -1,4 +1,3 @@
-◇ injected env (9) from .env // tip: ⌘ suppress logs { quiet: true }
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
