@@ -1,8 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import type { CartItem, CartTotals } from "../lib/types";
 import { formatCurrency } from "../lib/cart";
-import { completeCashSale, openDrawer } from "../lib/checkout";
-import { IconCash, IconPhone, IconClose, IconCheck } from "./icons";
+import {
+  completeCashSale,
+  initiateMpesaStkSale,
+  completeMpesaTillSale,
+  pollPaymentStatus,
+  openDrawer,
+} from "../lib/checkout";
+import { IconCash, IconPhone, IconClose, IconCheck, IconSync } from "./icons";
 
 interface TenderModalProps {
   isOpen: boolean;
@@ -11,6 +17,8 @@ interface TenderModalProps {
   totals: CartTotals;
   onCompleteSale: (result: any) => void;
 }
+
+const TILL_NUMBER = "3636288";
 
 export const TenderModal: React.FC<TenderModalProps> = ({
   isOpen,
@@ -22,14 +30,25 @@ export const TenderModal: React.FC<TenderModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "mpesa_stk" | "mpesa_till">("cash");
   const [cashTenderedCents, setCashTenderedCents] = useState<number>(() => totals.grandTotalCents);
   const [rawInput, setRawInput] = useState<string>(() => (totals.grandTotalCents / 100).toFixed(0));
+  
+  // M-Pesa STK Push state
   const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [stkPending, setStkPending] = useState<boolean>(false);
+  const [stkCountdown, setStkCountdown] = useState<number>(60);
+  const [stkStatusText, setStkStatusText] = useState<string>("Waiting for customer PIN...");
+  const pollAbortRef = useRef<boolean>(false);
+  const countdownTimerRef = useRef<any>(null);
+
+  // M-Pesa Till state
+  const [mpesaTillCode, setMpesaTillCode] = useState<string>("");
+
   const [isSuccess, setIsSuccess] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset tendered to total when modal opens or totals change (only if not manually edited recently)
+  // Reset states when modal opens
   useEffect(() => {
     if (isOpen) {
       setCashTenderedCents(totals.grandTotalCents);
@@ -38,12 +57,24 @@ export const TenderModal: React.FC<TenderModalProps> = ({
       setIsSuccess(false);
       setLastReceipt(null);
       setIsProcessing(false);
+      setStkPending(false);
+      setStkCountdown(60);
+      pollAbortRef.current = false;
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     }
   }, [isOpen, totals.grandTotalCents]);
 
+  // Clean up countdown on unmount
+  useEffect(() => {
+    return () => {
+      pollAbortRef.current = true;
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    };
+  }, []);
+
   if (!isOpen) return null;
 
-  const changeDueCents = Math.max(0, cashTenderedCents - totals.grandTotalCents); // integer cents
+  const changeDueCents = Math.max(0, cashTenderedCents - totals.grandTotalCents);
   const isExactOrMore = cashTenderedCents >= totals.grandTotalCents;
   const isBelowTotal = cashTenderedCents > 0 && cashTenderedCents < totals.grandTotalCents;
   const isZeroItems = items.length === 0;
@@ -78,18 +109,14 @@ export const TenderModal: React.FC<TenderModalProps> = ({
     setCashTenderedCents(Math.round(amount * 100));
   };
 
-  const handleConfirm = async () => {
+  // ─── Cash Sale Execution ──────────────────────────────────────────────────
+  const handleCashConfirm = async () => {
     if (isZeroItems) {
       setErrorMsg("Cart is empty");
       return;
     }
-    if (paymentMethod === "cash" && !isExactOrMore) {
+    if (!isExactOrMore) {
       setErrorMsg(`Short by ${formatCurrency(totals.grandTotalCents - cashTenderedCents)}`);
-      return;
-    }
-    // mpesa still not fully wired — show message
-    if (paymentMethod !== "cash") {
-      setErrorMsg("M-Pesa flow not required for Phase 4 cash verification — select Cash");
       return;
     }
 
@@ -99,7 +126,6 @@ export const TenderModal: React.FC<TenderModalProps> = ({
       const result = await completeCashSale(items, totals, cashTenderedCents);
       setIsSuccess(true);
       setLastReceipt(result.receipt);
-      // Show success for 1.1s then propagate
       setTimeout(() => {
         setIsSuccess(false);
         onCompleteSale(result);
@@ -112,14 +138,135 @@ export const TenderModal: React.FC<TenderModalProps> = ({
     }
   };
 
+  // ─── M-Pesa STK Push Execution ───────────────────────────────────────────
+  const handleStkInitiate = async () => {
+    if (isZeroItems) {
+      setErrorMsg("Cart is empty");
+      return;
+    }
+
+    const cleanPhone = phoneNumber.trim().replace(/\D/g, "");
+    if (!/^(?:\+?254|0)?[71]\d{8}$/.test(cleanPhone)) {
+      setErrorMsg("Enter a valid Kenyan mobile number (e.g. 0712345678 or 254712345678)");
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMsg(null);
+    setStkPending(true);
+    setStkCountdown(60);
+    setStkStatusText("Sending STK prompt to customer phone...");
+    pollAbortRef.current = false;
+
+    try {
+      const initResult = await initiateMpesaStkSale(items, totals, cleanPhone);
+      setStkStatusText("Prompt sent. Waiting for customer PIN...");
+
+      // Start countdown timer
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = setInterval(() => {
+        setStkCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Poll for completion
+      const paymentId = initResult.payment.id;
+      const pollResult = await pollPaymentStatus(
+        paymentId,
+        (status) => {
+          if (status === "pending") {
+            setStkStatusText("Waiting for customer PIN entry...");
+          }
+        },
+        60000
+      );
+
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+
+      if (pollAbortRef.current) {
+        setStkPending(false);
+        setIsProcessing(false);
+        return;
+      }
+
+      if (pollResult.status === "captured") {
+        setIsSuccess(true);
+        setLastReceipt(pollResult.receipt);
+        setStkPending(false);
+        setTimeout(() => {
+          setIsSuccess(false);
+          onCompleteSale({
+            transaction: pollResult.payment?.transaction,
+            payment: pollResult.payment,
+            receipt: pollResult.receipt,
+          });
+          onClose();
+        }, 1100);
+      } else if (pollResult.status === "failed") {
+        setStkPending(false);
+        setErrorMsg("Customer cancelled or payment failed on phone");
+      } else {
+        setStkPending(false);
+        setErrorMsg("STK prompt timed out. Ask customer to pay via Buy Goods Till 3636288 or retry");
+      }
+    } catch (err: any) {
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+      setStkPending(false);
+      setErrorMsg(err.message || "Failed to initiate M-Pesa STK Push");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCancelStk = () => {
+    pollAbortRef.current = true;
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    setStkPending(false);
+    setIsProcessing(false);
+    setErrorMsg("STK push cancelled. Select Cash or Buy Goods Till");
+  };
+
+  // ─── M-Pesa Buy Goods Till Manual Code Execution ─────────────────────────
+  const handleTillConfirm = async () => {
+    if (isZeroItems) {
+      setErrorMsg("Cart is empty");
+      return;
+    }
+
+    const code = mpesaTillCode.trim().toUpperCase();
+    if (!/^[A-Z0-9]{8,14}$/.test(code)) {
+      setErrorMsg("Enter a valid M-Pesa transaction code (e.g. QHN7ACKQOP)");
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMsg(null);
+
+    try {
+      const result = await completeMpesaTillSale(items, totals, code);
+      setIsSuccess(true);
+      setLastReceipt(result.receipt);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onCompleteSale(result);
+        onClose();
+      }, 1100);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to record Till payment");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleNoSaleDrawer = async () => {
     setErrorMsg(null);
     try {
-      const res = await openDrawer({ reason: "no_sale", amountCents: 0 });
-      setErrorMsg(null);
-      // Visual feedback via same success path? Just flash.
-      console.log("[TenderModal] No-sale drawer opened:", res);
-      // Brief success indicator for no_sale
+      await openDrawer({ reason: "no_sale", amountCents: 0 });
       setIsSuccess(true);
       setTimeout(() => setIsSuccess(false), 800);
     } catch (e: any) {
@@ -140,12 +287,14 @@ export const TenderModal: React.FC<TenderModalProps> = ({
         backdropFilter: "blur(8px)",
         padding: 16,
       }}
-      onClick={onClose}
+      onClick={() => {
+        if (!stkPending && !isProcessing) onClose();
+      }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: 520,
+          maxWidth: 540,
           maxHeight: "90vh",
           overflowY: "auto",
           backgroundColor: "var(--bg-surface)",
@@ -182,7 +331,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 color: "var(--accent-terracotta)",
               }}
             >
-              Checkout Tender — Cash First Class
+              Checkout Tender
             </span>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
               Payment Processing
@@ -191,15 +340,17 @@ export const TenderModal: React.FC<TenderModalProps> = ({
 
           <button
             onClick={onClose}
+            disabled={stkPending || isProcessing}
             style={{
               background: "none",
               border: "none",
               color: "var(--text-muted)",
-              cursor: "pointer",
+              cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
               padding: 6,
               borderRadius: "var(--radius-pill)",
               display: "flex",
               alignItems: "center",
+              opacity: stkPending || isProcessing ? 0.4 : 1,
             }}
           >
             <IconClose size={18} />
@@ -227,7 +378,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               </div>
               {items.length > 0 && (
                 <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
-                  {items.map((i) => `${i.name}×${i.quantity}`).join(", ").substring(0, 80)}
+                  {items.map((i) => `${i.name} x ${i.quantity}`).join(", ").substring(0, 80)}
                 </div>
               )}
             </div>
@@ -249,13 +400,17 @@ export const TenderModal: React.FC<TenderModalProps> = ({
             {[
               { id: "cash", label: "Cash", icon: <IconCash size={16} /> },
               { id: "mpesa_stk", label: "M-Pesa STK", icon: <IconPhone size={16} /> },
-              { id: "mpesa_till", label: "Buy Goods", icon: <IconPhone size={16} /> },
+              { id: "mpesa_till", label: `Till ${TILL_NUMBER}`, icon: <IconPhone size={16} /> },
             ].map((method) => {
               const active = paymentMethod === method.id;
               return (
                 <button
                   key={method.id}
-                  onClick={() => setPaymentMethod(method.id as any)}
+                  disabled={stkPending || isProcessing}
+                  onClick={() => {
+                    setPaymentMethod(method.id as any);
+                    setErrorMsg(null);
+                  }}
                   style={{
                     display: "flex",
                     flexDirection: "column",
@@ -266,11 +421,12 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                     backgroundColor: active ? "var(--accent-terracotta)" : "var(--bg-surface-elevated)",
                     color: active ? "#ffffff" : "var(--text-secondary)",
                     border: `1px solid ${active ? "transparent" : "var(--border-subtle)"}`,
-                    cursor: "pointer",
+                    cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
                     fontSize: 12,
                     fontWeight: 600,
                     boxShadow: active ? "0 4px 12px rgba(217, 119, 87, 0.3)" : "none",
                     transition: "all 0.18s var(--ease-spring)",
+                    opacity: stkPending || isProcessing ? 0.6 : 1,
                   }}
                 >
                   {method.icon}
@@ -280,10 +436,9 @@ export const TenderModal: React.FC<TenderModalProps> = ({
             })}
           </div>
 
-          {/* Cash Payment Details */}
+          {/* 1. CASH TAB */}
           {paymentMethod === "cash" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
               {/* Quick denomination chips */}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
@@ -340,7 +495,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 </div>
               </div>
 
-              {/* Custom amount input — integer cents math display */}
+              {/* Custom amount input */}
               <div>
                 <label
                   htmlFor="cash-tendered-input"
@@ -355,7 +510,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                     transition: "color 0.2s ease",
                   }}
                 >
-                  Cash Tendered (KES) — integer cents math
+                  Cash Tendered (KES)
                 </label>
                 <div style={{ position: "relative" }}>
                   <span
@@ -388,9 +543,6 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       e.currentTarget.style.borderColor = isBelowTotal
                         ? "var(--accent-rose)"
                         : "var(--border-focus)";
-                      e.currentTarget.style.boxShadow = isBelowTotal
-                        ? "0 0 0 3px rgba(224, 109, 115, 0.15)"
-                        : "0 0 0 3px rgba(217, 119, 87, 0.15)";
                     }}
                     placeholder="Enter amount"
                     style={{
@@ -410,7 +562,6 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       }`,
                       borderRadius: "var(--radius-md)",
                       outline: "none",
-                      transition: "border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease",
                     }}
                   />
                 </div>
@@ -426,21 +577,12 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       color: "var(--accent-rose)",
                     }}
                   >
-                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    Short by {formatCurrency(totals.grandTotalCents - cashTenderedCents)} — integer cents: {totals.grandTotalCents - cashTenderedCents}c
+                    Short by {formatCurrency(totals.grandTotalCents - cashTenderedCents)}
                   </div>
                 )}
-                {/* Integer cents debug line */}
-                <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
-                  tendered={cashTenderedCents}c · total={totals.grandTotalCents}c · change={changeDueCents}c (int math)
-                </div>
               </div>
 
-              {/* Change breakdown card — integer cents display */}
+              {/* Change breakdown */}
               <div
                 style={{
                   display: "grid",
@@ -452,16 +594,13 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                   border: `1px solid ${
                     changeDueCents > 0
                       ? "rgba(141, 161, 115, 0.3)"
-                      : cashTenderedCents === 0
-                      ? "var(--border-subtle)"
                       : "var(--border-subtle)"
                   }`,
-                  transition: "border-color 0.2s ease",
                 }}
               >
                 <div>
                   <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Tendered</span>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 800, marginTop: 3, letterSpacing: "-0.02em" }}>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 800, marginTop: 3 }}>
                     {formatCurrency(cashTenderedCents)}
                   </div>
                 </div>
@@ -472,14 +611,8 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       fontFamily: "var(--font-mono)",
                       fontSize: 16,
                       fontWeight: 800,
-                      letterSpacing: "-0.02em",
                       marginTop: 3,
-                      color: changeDueCents > 0
-                        ? "var(--accent-sage)"
-                        : changeDueCents === 0 && cashTenderedCents > 0
-                        ? "var(--accent-emerald)"
-                        : "var(--text-muted)",
-                      transition: "color 0.2s ease",
+                      color: changeDueCents > 0 ? "var(--accent-sage)" : "var(--text-muted)",
                     }}
                   >
                     {formatCurrency(changeDueCents)}
@@ -487,7 +620,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 </div>
               </div>
 
-              {/* No-sale drawer button + receipt preview hint */}
+              {/* Drawer buttons */}
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   onClick={handleNoSaleDrawer}
@@ -503,13 +636,16 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
-                  title="Opens drawer with reason no_sale (logged to backend)"
                 >
                   No-Sale Drawer
                 </button>
                 <button
                   onClick={async () => {
-                    try { await openDrawer({ reason: "manager_override", amountCents: 0 }); } catch(e:any){ setErrorMsg(e.message);} 
+                    try {
+                      await openDrawer({ reason: "manager_override", amountCents: 0 });
+                    } catch (e: any) {
+                      setErrorMsg(e.message);
+                    }
                   }}
                   type="button"
                   style={{
@@ -527,45 +663,177 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                   Manager Override
                 </button>
               </div>
-
             </div>
           )}
 
-          {/* M-Pesa placeholder */}
-          {(paymentMethod === "mpesa_stk" || paymentMethod === "mpesa_till") && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>
-                Customer Safaricom Mobile Number
-              </label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="e.g. 0712345678 or 254712345678"
+          {/* 2. M-PESA STK PUSH TAB */}
+          {paymentMethod === "mpesa_stk" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {!stkPending ? (
+                <>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>
+                      Customer Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="e.g. 0712345678 or 254712345678"
+                      disabled={isProcessing}
+                      style={{
+                        width: "100%",
+                        height: 48,
+                        padding: "0 16px",
+                        fontSize: 16,
+                        fontFamily: "var(--font-mono)",
+                        backgroundColor: "var(--bg-surface-elevated)",
+                        color: "var(--text-primary)",
+                        border: "1px solid var(--border-subtle)",
+                        borderRadius: "var(--radius-md)",
+                        outline: "none",
+                      }}
+                    />
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.45 }}>
+                      Customer will receive an instant prompt on their phone to enter their M-Pesa PIN for {formatCurrency(totals.grandTotalCents)}.
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* STK Waiting Card */
+                <div
+                  style={{
+                    padding: 20,
+                    borderRadius: "var(--radius-lg)",
+                    backgroundColor: "var(--bg-surface-elevated)",
+                    border: "1px solid var(--border-strong)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    textAlign: "center",
+                    gap: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      backgroundColor: "rgba(217, 119, 87, 0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--accent-terracotta)",
+                      animation: "spin 2s linear infinite",
+                    }}
+                  >
+                    <IconSync size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
+                      {stkStatusText}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
+                      Phone: {phoneNumber} · Amount: {formatCurrency(totals.grandTotalCents)}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "var(--font-mono)",
+                      fontWeight: 700,
+                      color: stkCountdown < 10 ? "var(--accent-rose)" : "var(--accent-terracotta)",
+                      padding: "4px 12px",
+                      borderRadius: "var(--radius-pill)",
+                      backgroundColor: "var(--bg-surface)",
+                      border: "1px solid var(--border-subtle)",
+                    }}
+                  >
+                    Timeout in {stkCountdown}s
+                  </div>
+                  <button
+                    onClick={handleCancelStk}
+                    style={{
+                      marginTop: 6,
+                      padding: "6px 16px",
+                      borderRadius: "var(--radius-pill)",
+                      backgroundColor: "transparent",
+                      border: "1px solid var(--border-subtle)",
+                      color: "var(--accent-rose)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel STK Push
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 3. M-PESA BUY GOODS TILL TAB */}
+          {paymentMethod === "mpesa_till" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Prominent Till Badge */}
+              <div
                 style={{
-                  height: 44,
-                  padding: "0 16px",
-                  fontSize: 14,
-                  fontFamily: "var(--font-mono)",
-                  backgroundColor: "var(--bg-surface-elevated)",
-                  color: "var(--text-primary)",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: "var(--radius-pill)",
-                  outline: "none",
-                  transition: "border-color 0.15s ease",
+                  padding: "16px 20px",
+                  borderRadius: "var(--radius-lg)",
+                  backgroundColor: "rgba(217, 119, 87, 0.1)",
+                  border: "1px solid rgba(217, 119, 87, 0.3)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  textAlign: "center",
+                  gap: 4,
                 }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--border-focus)")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
-              />
-              <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.45 }}>
-                {paymentMethod === "mpesa_stk"
-                  ? "STK Push requires online — cash is primary offline method."
-                  : "Till manual flow — customer enters Till, cashier records code. Cash is primary."}
+              >
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-terracotta)" }}>
+                  Lipa na M-Pesa Buy Goods Till
+                </span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "0.04em" }}>
+                  {TILL_NUMBER}
+                </span>
+                <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                  Instruct customer to pay {formatCurrency(totals.grandTotalCents)} to Till {TILL_NUMBER}
+                </span>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>
+                  M-Pesa Transaction Code
+                </label>
+                <input
+                  type="text"
+                  value={mpesaTillCode}
+                  onChange={(e) => setMpesaTillCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. QHN7ACKQOP"
+                  maxLength={14}
+                  style={{
+                    width: "100%",
+                    height: 48,
+                    padding: "0 16px",
+                    fontSize: 18,
+                    fontFamily: "var(--font-mono)",
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    backgroundColor: "var(--bg-surface-elevated)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: "var(--radius-md)",
+                    outline: "none",
+                  }}
+                />
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.45 }}>
+                  Enter the confirmation code from customer SMS or merchant till statement. Use this manual method if STK push or network is unavailable.
+                </div>
               </div>
             </div>
           )}
 
-          {/* Error / success banner */}
+          {/* Error / Success Feedback */}
           {errorMsg && (
             <div
               style={{
@@ -582,6 +850,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               {errorMsg}
             </div>
           )}
+
           {isSuccess && (
             <div
               style={{
@@ -597,23 +866,21 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 gap: 8,
               }}
             >
-              <IconCheck size={16} /> {lastReceipt?.printerType === "virtual" ? "Sale completed — receipt queued (virtual printer)" : "Sale completed — receipt printed & drawer kicked"}
+              <IconCheck size={16} /> Sale completed successfully
             </div>
           )}
+
           {lastReceipt && lastReceipt.textPreview && (
             <details style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              <summary style={{ cursor: "pointer", fontWeight: 600 }}>Last ESC/POS receipt preview (real tx data)</summary>
-              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: 10, backgroundColor: "var(--bg-surface-elevated)", padding: 12, borderRadius: 8, marginTop: 8, maxHeight: 240, overflowY: "auto", border: "1px solid var(--border-subtle)" }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600 }}>Last receipt preview</summary>
+              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: 10, backgroundColor: "var(--bg-surface-elevated)", padding: 12, borderRadius: 8, marginTop: 8, maxHeight: 200, overflowY: "auto", border: "1px solid var(--border-subtle)" }}>
                 {lastReceipt.textPreview || lastReceipt.virtualParsed || "—"}
               </pre>
-              <div style={{ fontSize: 10, marginTop: 4, fontFamily: "var(--font-mono)" }}>
-                bytes={lastReceipt.bytesLength} hex={ (lastReceipt.hexPreview||"").substring(0,80)}... printer={lastReceipt.printerType}
-              </div>
             </details>
           )}
         </div>
 
-        {/* Modal Footer Actions (Pills) */}
+        {/* Modal Footer Actions */}
         <div
           style={{
             display: "flex",
@@ -627,7 +894,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
         >
           <button
             onClick={onClose}
-            disabled={isProcessing}
+            disabled={stkPending || isProcessing}
             style={{
               padding: "10px 20px",
               borderRadius: "var(--radius-pill)",
@@ -636,40 +903,93 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               color: "var(--text-secondary)",
               fontSize: 13,
               fontWeight: 600,
-              cursor: isProcessing ? "not-allowed" : "pointer",
-              opacity: isProcessing ? 0.6 : 1,
+              cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
+              opacity: stkPending || isProcessing ? 0.6 : 1,
             }}
           >
             Cancel
           </button>
 
-          <button
-            onClick={handleConfirm}
-            disabled={isProcessing || (paymentMethod === "cash" && !isExactOrMore) || isZeroItems}
-            className="pos-btn-pill pos-btn-pill-primary"
-            style={{
-              padding: "10px 24px",
-              backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
-              opacity: (isProcessing || (paymentMethod === "cash" && !isExactOrMore) || isZeroItems) ? 0.5 : 1,
-              cursor: (isProcessing || (paymentMethod === "cash" && !isExactOrMore) || isZeroItems) ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 13,
-              fontWeight: 700,
-            }}
-          >
-            {isSuccess ? (
-              <>
-                <IconCheck size={16} />
-                <span>{lastReceipt ? "Done" : "Transaction Logged"}</span>
-              </>
-            ) : isProcessing ? (
-              <span>Processing…</span>
-            ) : (
-              <span>Complete Sale — Cash</span>
-            )}
-          </button>
+          {paymentMethod === "cash" && (
+            <button
+              onClick={handleCashConfirm}
+              disabled={isProcessing || !isExactOrMore || isZeroItems}
+              className="pos-btn-pill pos-btn-pill-primary"
+              style={{
+                padding: "10px 24px",
+                backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
+                opacity: (isProcessing || !isExactOrMore || isZeroItems) ? 0.5 : 1,
+                cursor: (isProcessing || !isExactOrMore || isZeroItems) ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              {isSuccess ? (
+                <>
+                  <IconCheck size={16} />
+                  <span>Done</span>
+                </>
+              ) : isProcessing ? (
+                <span>Processing...</span>
+              ) : (
+                <span>Complete Sale (Cash)</span>
+              )}
+            </button>
+          )}
+
+          {paymentMethod === "mpesa_stk" && !stkPending && (
+            <button
+              onClick={handleStkInitiate}
+              disabled={isProcessing || isZeroItems || !phoneNumber.trim()}
+              className="pos-btn-pill pos-btn-pill-primary"
+              style={{
+                padding: "10px 24px",
+                backgroundColor: "var(--accent-primary)",
+                opacity: (isProcessing || isZeroItems || !phoneNumber.trim()) ? 0.5 : 1,
+                cursor: (isProcessing || isZeroItems || !phoneNumber.trim()) ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              {isProcessing ? <span>Sending...</span> : <span>Send STK Push</span>}
+            </button>
+          )}
+
+          {paymentMethod === "mpesa_till" && (
+            <button
+              onClick={handleTillConfirm}
+              disabled={isProcessing || isZeroItems || mpesaTillCode.trim().length < 8}
+              className="pos-btn-pill pos-btn-pill-primary"
+              style={{
+                padding: "10px 24px",
+                backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
+                opacity: (isProcessing || isZeroItems || mpesaTillCode.trim().length < 8) ? 0.5 : 1,
+                cursor: (isProcessing || isZeroItems || mpesaTillCode.trim().length < 8) ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              {isSuccess ? (
+                <>
+                  <IconCheck size={16} />
+                  <span>Done</span>
+                </>
+              ) : isProcessing ? (
+                <span>Recording...</span>
+              ) : (
+                <span>Confirm Till Payment</span>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

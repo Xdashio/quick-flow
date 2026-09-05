@@ -1,6 +1,7 @@
 node_modules/
 dist/
 !dashboard/.next/
+!backend/dist/
 out/
 coverage/
 .env
@@ -17,6 +18,7 @@ tsconfig.build.tsbuildinfo
 **/*.db
 **/*.db-*
 **/dist/
+!backend/dist/
 # electron-builder output (installers are published via GitHub Releases, not git)
 register/release/
 # Register runtime image cache (downloaded per-terminal at sync time)

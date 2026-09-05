@@ -90,7 +90,6 @@ export async function completeCashSale(
   // Try Electron IPC first
   if (typeof window !== "undefined" && (window as any).posApi?.completeCashSale) {
     const result = await (window as any).posApi.completeCashSale(payload);
-    // Normalize shape: checkout-queue returns offline flag
     return {
       success: result.success ?? true,
       offline: result.offline ?? false,
@@ -129,6 +128,165 @@ export async function completeCashSale(
     payment: data.payment,
     drawerEvent: data.drawerEvent,
   };
+}
+
+export async function initiateMpesaStkSale(
+  items: CartItem[],
+  totals: CartTotals,
+  phoneNumber: string,
+  opts: { locationId?: string; cashierId?: string; registerId?: string } = {}
+): Promise<{
+  success: boolean;
+  transaction: any;
+  payment: any;
+  darajaResponse: any;
+}> {
+  const payload = {
+    id: crypto.randomUUID(),
+    locationId: opts.locationId || DEFAULT_LOCATION_ID,
+    registerId: opts.registerId || DEFAULT_REGISTER_ID,
+    cashierId: opts.cashierId || DEFAULT_CASHIER_ID,
+    subtotalCents: totals.subtotalCents,
+    taxCents: totals.totalTaxCents,
+    totalCents: totals.grandTotalCents,
+    lineItems: items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPriceCents: item.priceCents,
+      taxRateBp: item.taxRateBp,
+      discountCents: 0,
+      lineTotalCents: item.lineTotalCents,
+    })),
+    phoneNumber,
+    createdAt: new Date().toISOString(),
+  };
+
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const res = await fetch(`${apiUrl}/checkout/mpesa-stk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    let message = body;
+    try {
+      const parsed = JSON.parse(body);
+      message = parsed.message || body;
+    } catch {}
+    throw new Error(`M-Pesa STK failed: ${message}`);
+  }
+
+  const data = await res.json();
+  return {
+    success: true,
+    transaction: data.transaction,
+    payment: data.payment,
+    darajaResponse: data.darajaResponse,
+  };
+}
+
+export async function completeMpesaTillSale(
+  items: CartItem[],
+  totals: CartTotals,
+  mpesaCode: string,
+  opts: { locationId?: string; cashierId?: string; registerId?: string } = {}
+): Promise<{
+  success: boolean;
+  transaction: any;
+  payment: any;
+  receipt?: any;
+}> {
+  const payload = {
+    id: crypto.randomUUID(),
+    locationId: opts.locationId || DEFAULT_LOCATION_ID,
+    registerId: opts.registerId || DEFAULT_REGISTER_ID,
+    cashierId: opts.cashierId || DEFAULT_CASHIER_ID,
+    subtotalCents: totals.subtotalCents,
+    taxCents: totals.totalTaxCents,
+    totalCents: totals.grandTotalCents,
+    lineItems: items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPriceCents: item.priceCents,
+      taxRateBp: item.taxRateBp,
+      discountCents: 0,
+      lineTotalCents: item.lineTotalCents,
+    })),
+    mpesaCode: mpesaCode.trim().toUpperCase(),
+    createdAt: new Date().toISOString(),
+  };
+
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const res = await fetch(`${apiUrl}/checkout/mpesa-till`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    let message = body;
+    try {
+      const parsed = JSON.parse(body);
+      message = parsed.message || body;
+    } catch {}
+    throw new Error(`M-Pesa Till failed: ${message}`);
+  }
+
+  const data = await res.json();
+  return {
+    success: true,
+    transaction: data.transaction,
+    payment: data.payment,
+    receipt: data.receipt,
+  };
+}
+
+export async function pollPaymentStatus(
+  paymentId: string,
+  onStatus?: (status: string) => void,
+  timeoutMs: number = 60000
+): Promise<{ status: 'captured' | 'failed' | 'pending'; payment: any; receipt?: any }> {
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`${apiUrl}/payments/status/${paymentId}`);
+      if (res.ok) {
+        const payment = await res.json();
+        if (onStatus) onStatus(payment.status);
+
+        if (payment.status === 'captured') {
+          // Fetch final receipt
+          let receipt: any = null;
+          try {
+            const compRes = await fetch(`${apiUrl}/checkout/mpesa-complete/${payment.id}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            if (compRes.ok) {
+              const compData = await compRes.json();
+              receipt = compData.receipt;
+            }
+          } catch {}
+
+          return { status: 'captured', payment, receipt };
+        }
+
+        if (payment.status === 'failed') {
+          return { status: 'failed', payment };
+        }
+      }
+    } catch {}
+
+    // Wait 2.5s between polls
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+  }
+
+  return { status: 'pending', payment: null };
 }
 
 export async function openDrawer(args: { reason: string; registerId?: string; userId?: string; amountCents?: number }) {

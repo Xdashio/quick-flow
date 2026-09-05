@@ -5,12 +5,11 @@ export class StkPushDto {
   transactionId!: string;
 
   /**
-   * Phone number in E.164 format without leading +
-   * Safaricom sandbox test MSISDN: 254708374149
+   * Phone number in Kenyan format: 07XXXXXXXX, 01XXXXXXXX, 2547XXXXXXXX, 2541XXXXXXXX
    */
   @IsString()
-  @Matches(/^2547\d{8}$/, {
-    message: 'phoneNumber must be a valid Kenyan M-Pesa number (format: 2547XXXXXXXX)',
+  @Matches(/^(?:\+?254|0)?[71]\d{8}$/, {
+    message: 'phoneNumber must be a valid Kenyan mobile number (e.g. 0712345678, 0112345678, or 254712345678)',
   })
   phoneNumber!: string;
 

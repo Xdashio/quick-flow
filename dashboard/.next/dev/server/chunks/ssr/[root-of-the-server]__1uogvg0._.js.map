@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 10, "column": 0}, "map": {"version":3,"sources":["file:///home/xdashio/Desktop/POS/dashboard/app/page.tsx"],"sourcesContent":["import { redirect } from 'next/navigation';\nexport default function Root() {\n  redirect('/overview');\n}\n"],"names":["Root"],"mappings":";;;;AAAA;AAAA;;AACe,SAASA;IACtB,IAAA,iMAAQ,EAAC;AACX"}}]
-}

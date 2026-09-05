@@ -7,11 +7,11 @@
   "/page": "app/page.js",
   "/(dashboard)/page": "app/(dashboard)/page.js",
   "/(dashboard)/categories/page": "app/(dashboard)/categories/page.js",
-  "/(dashboard)/overview/page": "app/(dashboard)/overview/page.js",
-  "/(dashboard)/products/page": "app/(dashboard)/products/page.js",
-  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
-  "/login/page": "app/login/page.js",
-  "/(dashboard)/drawer/page": "app/(dashboard)/drawer/page.js",
   "/(dashboard)/inventory/page": "app/(dashboard)/inventory/page.js",
-  "/(dashboard)/payments/page": "app/(dashboard)/payments/page.js"
+  "/(dashboard)/drawer/page": "app/(dashboard)/drawer/page.js",
+  "/(dashboard)/products/page": "app/(dashboard)/products/page.js",
+  "/(dashboard)/overview/page": "app/(dashboard)/overview/page.js",
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(dashboard)/payments/page": "app/(dashboard)/payments/page.js",
+  "/login/page": "app/login/page.js"
 }

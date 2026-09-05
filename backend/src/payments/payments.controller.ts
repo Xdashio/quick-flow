@@ -35,8 +35,13 @@ export class PaymentsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  findOne(@Param('id') id: string) {
     return this.service.findOne(id);
+  }
+
+  @Get('status/:id')
+  getStatus(@Param('id') id: string) {
+    return this.mpesa.getPaymentStatus(id);
   }
 
   // ─── M-Pesa STK Push ───────────────────────────────────────────────────

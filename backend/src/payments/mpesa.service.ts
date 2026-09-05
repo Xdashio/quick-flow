@@ -53,21 +53,34 @@ export interface DarajaStkQueryResponse {
 export class MpesaService {
   private readonly logger = new Logger(MpesaService.name);
 
-  // Daraja sandbox base URL (switch to live URL in production)
-  private readonly baseUrl = 'https://sandbox.safaricom.co.ke';
-
   constructor(
     private readonly config: ConfigService,
     private readonly http: HttpService,
     private readonly prisma: PrismaService,
   ) {}
 
+  private getBaseUrl(): string {
+    const env = (this.config.get<string>('DARAJA_ENV') || 'sandbox').toLowerCase();
+    return env === 'production'
+      ? 'https://api.safaricom.co.ke'
+      : 'https://sandbox.safaricom.co.ke';
+  }
+
+  normalizePhoneNumber(raw: string): string {
+    let phone = raw.trim().replace(/\D/g, '');
+    if (phone.startsWith('0')) {
+      phone = '254' + phone.substring(1);
+    } else if (phone.startsWith('7') || phone.startsWith('1')) {
+      phone = '254' + phone;
+    }
+    return phone;
+  }
+
   // ─── 1. OAuth Token ──────────────────────────────────────────────────────
 
   /**
    * Obtains a short-lived Daraja access token via Basic auth.
-   * Throws ServiceUnavailableException if credentials are not configured —
-   * never returns a fake/fabricated token.
+   * Throws ServiceUnavailableException if credentials are not configured.
    */
   async getAccessToken(): Promise<string> {
     const key = this.config.get<string>('DARAJA_CONSUMER_KEY');
@@ -81,9 +94,9 @@ export class MpesaService {
     }
 
     const credentials = Buffer.from(`${key}:${secret}`).toString('base64');
-    const url = `${this.baseUrl}/oauth/v1/generate?grant_type=client_credentials`;
+    const url = `${this.getBaseUrl()}/oauth/v1/generate?grant_type=client_credentials`;
 
-    this.logger.log(`[Daraja] POST ${url}`);
+    this.logger.log(`[Daraja] Requesting access token from ${url}`);
 
     const response = await firstValueFrom(
       this.http.get<DarajaTokenResponse>(url, {
@@ -92,9 +105,7 @@ export class MpesaService {
       }),
     );
 
-    this.logger.log(
-      `[Daraja] Token response: ${JSON.stringify(response.data)}`,
-    );
+    this.logger.log(`[Daraja] Access token generated successfully`);
 
     return response.data.access_token;
   }
@@ -105,28 +116,33 @@ export class MpesaService {
    * Initiates an STK Push to the customer's phone.
    * - Creates a Payment record with status='pending' and checkoutRequestId
    * - Returns the full raw Daraja response + internal payment record
-   *
-   * Per blueprint: CheckoutRequestID is persisted before Daraja responds
-   * so the callback handler can validate it against a known pending record.
    */
   async initiateSTKPush(
     transactionId: string,
     phoneNumber: string,
     amountCents: number,
   ) {
-    // Validate transaction exists
     const tx = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
     });
     if (!tx) throw new NotFoundException(`Transaction ${transactionId} not found`);
 
+    const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
     const accessToken = await this.getAccessToken();
 
-    const shortcode = this.config.get<string>('DARAJA_SHORTCODE')!;
-    const passkey = this.config.get<string>('DARAJA_PASSKEY')!;
-    const callbackUrl = this.config.get<string>('DARAJA_CALLBACK_URL')!;
+    const shortcode = this.config.get<string>('DARAJA_SHORTCODE');
+    const passkey = this.config.get<string>('DARAJA_PASSKEY');
+    const callbackUrl = this.config.get<string>('DARAJA_CALLBACK_URL');
+    const transactionType =
+      this.config.get<string>('DARAJA_TRANSACTION_TYPE') || 'CustomerBuyGoodsOnline';
 
-    // Timestamp: YYYYMMDDHHmmss (Nairobi time → UTC+3)
+    if (!shortcode || !passkey || !callbackUrl) {
+      throw new ServiceUnavailableException(
+        'Daraja shortcode, passkey or callback URL not configured in .env',
+      );
+    }
+
+    // Timestamp: YYYYMMDDHHmmss (Nairobi time -> UTC+3)
     const now = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }),
     );
@@ -140,29 +156,27 @@ export class MpesaService {
     ].join('');
 
     // STK Push password = base64(shortcode + passkey + timestamp)
-    const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString(
-      'base64',
-    );
+    const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
 
     // Amount in whole KES (Daraja does not accept cents)
-    const amountKes = Math.ceil(amountCents / 100);
+    const amountKes = Math.max(1, Math.ceil(amountCents / 100));
 
     const payload = {
       BusinessShortCode: shortcode,
       Password: password,
       Timestamp: timestamp,
-      TransactionType: 'CustomerPayBillOnline',
+      TransactionType: transactionType,
       Amount: amountKes,
-      PartyA: phoneNumber,          // customer phone
-      PartyB: shortcode,            // receiving shortcode
-      PhoneNumber: phoneNumber,
+      PartyA: normalizedPhone,
+      PartyB: shortcode,
+      PhoneNumber: normalizedPhone,
       CallBackURL: callbackUrl,
-      AccountReference: transactionId.slice(0, 12), // max 12 chars
+      AccountReference: transactionId.slice(0, 12),
       TransactionDesc: `POS payment ${transactionId.slice(0, 8)}`,
     };
 
-    const url = `${this.baseUrl}/mpesa/stkpush/v1/processrequest`;
-    this.logger.log(`[Daraja] POST ${url} payload=${JSON.stringify(payload)}`);
+    const url = `${this.getBaseUrl()}/mpesa/stkpush/v1/processrequest`;
+    this.logger.log(`[Daraja] POST ${url} with shortcode ${shortcode} to ${normalizedPhone}`);
 
     const response = await firstValueFrom(
       this.http.post<DarajaStkPushResponse>(url, payload, {
@@ -175,7 +189,7 @@ export class MpesaService {
     );
 
     this.logger.log(
-      `[Daraja] STK Push raw response: ${JSON.stringify(response.data)}`,
+      `[Daraja] STK Push response: Code=${response.data.ResponseCode}, CheckoutRequestID=${response.data.CheckoutRequestID}`,
     );
 
     if (response.data.ResponseCode !== '0') {
@@ -190,7 +204,7 @@ export class MpesaService {
         transactionId,
         method: 'mpesa_stk',
         amountCents,
-        mpesaPhoneNumber: phoneNumber,
+        mpesaPhoneNumber: normalizedPhone,
         checkoutRequestId: response.data.CheckoutRequestID,
         status: 'pending',
       },
@@ -205,14 +219,9 @@ export class MpesaService {
   // ─── 3. Callback Handler ─────────────────────────────────────────────────
 
   /**
-   * Handles the real Daraja STK Push callback.
-   *
-   * Security validation per blueprint:
-   * - Cross-checks CheckoutRequestID against a known `pending` Payment in DB
-   * - Rejects with 404 if no matching record exists (not trusting payload blindly)
-   *
-   * On ResultCode=0 (success): marks payment `captured`, writes receipt number
-   * On ResultCode≠0 (failure): marks payment `failed`, logs reason
+   * Handles the Daraja STK Push callback.
+   * On ResultCode=0 (success): marks payment captured and finalizes transaction
+   * On ResultCode!=0 (failure): marks payment failed
    */
   async handleCallback(body: Record<string, any>): Promise<{ acknowledged: boolean }> {
     const callback: DarajaStkCallback = body?.Body?.stkCallback;
@@ -229,7 +238,6 @@ export class MpesaService {
         `ResultCode=${ResultCode} ResultDesc=${ResultDesc}`,
     );
 
-    // ── Validate CheckoutRequestID against a PENDING payment ──────
     const payment = await this.prisma.payment.findFirst({
       where: {
         checkoutRequestId: CheckoutRequestID,
@@ -239,16 +247,14 @@ export class MpesaService {
 
     if (!payment) {
       this.logger.warn(
-        `[Daraja] REJECTED callback — no pending payment found for CheckoutRequestID=${CheckoutRequestID}`,
+        `[Daraja] REJECTED callback - no pending payment found for CheckoutRequestID=${CheckoutRequestID}`,
       );
-      // Return 404 to Daraja; it will retry but we refuse to process unknown callbacks
       throw new NotFoundException(
         `No pending payment found for CheckoutRequestID: ${CheckoutRequestID}`,
       );
     }
 
     if (ResultCode === 0) {
-      // ── Successful payment — extract receipt details from CallbackMetadata ──
       const items = CallbackMetadata?.Item ?? [];
       const get = (name: string) =>
         items.find((i) => i.Name === name)?.Value ?? null;
@@ -260,20 +266,20 @@ export class MpesaService {
         `[Daraja] Payment CAPTURED: receipt=${mpesaReceiptNumber} phone=${mpesaPhone}`,
       );
 
-      const updated = await this.prisma.payment.update({
+      await this.prisma.payment.update({
         where: { id: payment.id },
         data: {
           status: 'captured',
           mpesaReceiptNumber: mpesaReceiptNumber,
-          mpesaPhoneNumber: mpesaPhone ?? payment.mpesaPhoneNumber,
+          mpesaPhoneNumber: mpesaPhone ? String(mpesaPhone) : payment.mpesaPhoneNumber,
         },
       });
 
-      this.logger.log(`[Daraja] Payment ${payment.id} updated to captured`);
-      return { acknowledged: true };
+      await this.finalizeTransaction(payment.transactionId);
 
+      this.logger.log(`[Daraja] Payment ${payment.id} and transaction ${payment.transactionId} completed`);
+      return { acknowledged: true };
     } else {
-      // ── Failed/cancelled payment ──────────────────────────────────────
       this.logger.warn(
         `[Daraja] Payment FAILED: CheckoutRequestID=${CheckoutRequestID} reason="${ResultDesc}"`,
       );
@@ -291,8 +297,8 @@ export class MpesaService {
 
   /**
    * Cashier manually enters an M-Pesa transaction code after customer pays
-   * via the merchant's till number. Creates a payment record with
-   * status='awaiting_confirmation' pending reconciliation.
+   * via the merchant's till number (e.g. Till 3636288).
+   * Creates captured payment record and completes the transaction.
    */
   async createTillPayment(
     transactionId: string,
@@ -304,13 +310,15 @@ export class MpesaService {
     });
     if (!tx) throw new NotFoundException(`Transaction ${transactionId} not found`);
 
+    const formattedCode = mpesaCode.trim().toUpperCase();
+
     // Prevent duplicate submission of the same M-Pesa code
     const existing = await this.prisma.payment.findFirst({
-      where: { mpesaReceiptNumber: mpesaCode },
+      where: { mpesaReceiptNumber: formattedCode },
     });
     if (existing) {
       throw new BadRequestException(
-        `M-Pesa code ${mpesaCode} has already been recorded (payment ${existing.id})`,
+        `M-Pesa code ${formattedCode} has already been recorded (payment ${existing.id})`,
       );
     }
 
@@ -319,27 +327,43 @@ export class MpesaService {
         transactionId,
         method: 'mpesa_till',
         amountCents,
-        mpesaReceiptNumber: mpesaCode,
-        status: 'awaiting_confirmation',
+        mpesaReceiptNumber: formattedCode,
+        status: 'captured',
       },
     });
 
+    await this.finalizeTransaction(transactionId);
+
     this.logger.log(
-      `[MpesaTill] Created awaiting_confirmation payment ${payment.id} ` +
-        `for code ${mpesaCode} on transaction ${transactionId}`,
+      `[MpesaTill] Created captured payment ${payment.id} for code ${formattedCode} on transaction ${transactionId}`,
     );
 
     return payment;
   }
 
-  // ─── 5. Reconciliation ───────────────────────────────────────────────────
+  // ─── 5. Status & Reconciliation ──────────────────────────────────────────
 
-  /**
-   * Reconciliation job: for STK payments with a checkoutRequestId, queries
-   * Daraja's transaction status API to confirm/update the record.
-   * Till payments (mpesa_till) have no checkoutRequestId and require
-   * manual business reconciliation — this is logged clearly.
-   */
+  async getPaymentStatus(id: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        OR: [
+          { id },
+          { checkoutRequestId: id },
+        ],
+      },
+      include: {
+        transaction: {
+          include: {
+            lineItems: { include: { product: true } },
+          },
+        },
+      },
+    });
+
+    if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+    return payment;
+  }
+
   async reconcileTillPayment(paymentId: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -353,24 +377,16 @@ export class MpesaService {
       };
     }
 
-    // Till payments: no checkoutRequestId — cannot query Daraja API
-    // They require manual reconciliation against merchant's M-Pesa statement
     if (payment.method === 'mpesa_till' || !payment.checkoutRequestId) {
-      this.logger.log(
-        `[Reconcile] Payment ${paymentId} is a till payment — ` +
-          'requires manual reconciliation against M-Pesa merchant statement',
-      );
       return {
         message:
-          'Till payment awaiting_confirmation. Manual reconciliation required: ' +
-          'verify transaction code against your M-Pesa merchant statement or use ' +
-          "Safaricom's Reverse/Confirm API with your till number credentials.",
+          'Till payment manual reconciliation: verify transaction code against M-Pesa statement.',
         payment,
         requiresManualReconciliation: true,
       };
     }
 
-    // STK payment with checkoutRequestId — query Daraja
+    // STK payment with checkoutRequestId - query Daraja
     const accessToken = await this.getAccessToken();
     const shortcode = this.config.get<string>('DARAJA_SHORTCODE')!;
     const passkey = this.config.get<string>('DARAJA_PASSKEY')!;
@@ -395,8 +411,8 @@ export class MpesaService {
       CheckoutRequestID: payment.checkoutRequestId,
     };
 
-    const url = `${this.baseUrl}/mpesa/stkpushquery/v1/query`;
-    this.logger.log(`[Daraja] POST ${url} payload=${JSON.stringify(queryPayload)}`);
+    const url = `${this.getBaseUrl()}/mpesa/stkpushquery/v1/query`;
+    this.logger.log(`[Daraja] Querying STK status for ${payment.checkoutRequestId}`);
 
     const response = await firstValueFrom(
       this.http.post<DarajaStkQueryResponse>(url, queryPayload, {
@@ -408,10 +424,6 @@ export class MpesaService {
       }),
     );
 
-    this.logger.log(
-      `[Daraja] Query response: ${JSON.stringify(response.data)}`,
-    );
-
     const resultCode = String(response.data.ResultCode);
 
     if (resultCode === '0') {
@@ -419,6 +431,7 @@ export class MpesaService {
         where: { id: paymentId },
         data: { status: 'captured' },
       });
+      await this.finalizeTransaction(payment.transactionId);
       return { message: 'Reconciled: payment captured', payment: updated, darajaResponse: response.data };
     } else {
       const updated = await this.prisma.payment.update({
@@ -426,10 +439,67 @@ export class MpesaService {
         data: { status: 'failed' },
       });
       return {
-        message: `Reconciled: payment failed — ${response.data.ResultDesc}`,
+        message: `Reconciled: payment failed - ${response.data.ResultDesc}`,
         payment: updated,
         darajaResponse: response.data,
       };
+    }
+  }
+
+  /**
+   * Finalizes a transaction once payment is captured:
+   * - Marks transaction as COMPLETED
+   * - Creates inventory movements (deducts stock)
+   * - Refreshes current_inventory materialized view
+   */
+  private async finalizeTransaction(transactionId: string) {
+    try {
+      const tx = await this.prisma.transaction.findUnique({
+        where: { id: transactionId },
+        include: { lineItems: true },
+      });
+
+      if (!tx || tx.status === 'COMPLETED') return;
+
+      // Update status to COMPLETED
+      await this.prisma.transaction.update({
+        where: { id: transactionId },
+        data: {
+          status: 'COMPLETED',
+          syncedAt: new Date(),
+        },
+      });
+
+      // Record inventory deduction movements if not already recorded
+      const existingMovement = await this.prisma.inventoryMovement.findFirst({
+        where: { referenceId: transactionId },
+      });
+
+      if (!existingMovement && tx.lineItems.length > 0) {
+        for (const li of tx.lineItems) {
+          await this.prisma.inventoryMovement.create({
+            data: {
+              productId: li.productId,
+              locationId: tx.locationId,
+              quantityDelta: -Number(li.quantity),
+              reason: 'sale',
+              referenceId: tx.id,
+              createdBy: tx.cashierId ?? null,
+            },
+          });
+        }
+      }
+
+      // Refresh materialized view if available
+      try {
+        await this.prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY current_inventory');
+      } catch {
+        try {
+          await this.prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW current_inventory');
+        } catch {}
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to finalize transaction ${transactionId}: ${err.message}`);
     }
   }
 }

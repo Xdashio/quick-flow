@@ -142,6 +142,61 @@ export const posApi = {
     return res.json();
   },
 
+  async initiateMpesaStkSale(payload: any): Promise<any> {
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const res = await fetch(`${apiUrl}/checkout/mpesa-stk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.message || `M-Pesa STK failed: ${errorText}`);
+      } catch (e: any) {
+        throw new Error(e.message || `M-Pesa STK failed ${res.status}: ${errorText}`);
+      }
+    }
+    return res.json();
+  },
+
+  async completeMpesaTillSale(payload: any): Promise<any> {
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const res = await fetch(`${apiUrl}/checkout/mpesa-till`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.message || `M-Pesa Till failed: ${errorText}`);
+      } catch (e: any) {
+        throw new Error(e.message || `M-Pesa Till failed ${res.status}: ${errorText}`);
+      }
+    }
+    return res.json();
+  },
+
+  async getPaymentStatus(paymentId: string): Promise<any> {
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const res = await fetch(`${apiUrl}/payments/status/${paymentId}`);
+    if (!res.ok) throw new Error(`Failed to get payment status ${res.status}`);
+    return res.json();
+  },
+
+  async completeMpesaStkSale(paymentId: string): Promise<any> {
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const res = await fetch(`${apiUrl}/checkout/mpesa-complete/${paymentId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`Failed to complete STK receipt ${res.status}`);
+    return res.json();
+  },
+
   async openDrawer(args: { reason: string; amountCents?: number; registerId?: string; userId?: string }): Promise<any> {
     if (window.posApi?.openDrawer) return window.posApi.openDrawer(args);
     const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";

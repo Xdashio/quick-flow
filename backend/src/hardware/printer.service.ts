@@ -37,6 +37,8 @@ export interface ReceiptTransaction {
     method: string;
     amountCents: number;
     status: string;
+    mpesaReceiptNumber?: string;
+    mpesaPhoneNumber?: string;
   };
   changeDueCents?: number;
   amountTenderedCents?: number;
@@ -233,13 +235,18 @@ export class PrinterService {
 
     if (tx.payment) {
       pushLine(line(`Paid (${tx.payment.method}):`, tx.payment.amountCents));
-      if (typeof tx.changeDueCents === 'number' && tx.changeDueCents >= 0) {
-        // Emphasize change
+      if (tx.payment.mpesaReceiptNumber) {
+        pushLine(`M-Pesa Ref: ${tx.payment.mpesaReceiptNumber}`);
+      }
+      if (tx.payment.mpesaPhoneNumber) {
+        pushLine(`Phone: ${tx.payment.mpesaPhoneNumber}`);
+      }
+      if (typeof tx.changeDueCents === 'number' && tx.changeDueCents >= 0 && tx.payment.method === 'cash') {
         push(ESC, 0x45, 0x01);
         pushLine(line('Change Due:', tx.changeDueCents));
         push(ESC, 0x45, 0x00);
       }
-      if (typeof tx.amountTenderedCents === 'number') {
+      if (typeof tx.amountTenderedCents === 'number' && tx.payment.method === 'cash') {
         pushLine(line('Tendered:', tx.amountTenderedCents));
       }
     }
