@@ -1,103 +1,108 @@
-# Quick Flow — Kenya M-Pesa-First POS
+# QuickFlow — M-Pesa-First POS for Kenyan Retail
 
-Single-location retail/grocery POS, offline-first, M-Pesa + cash, KRA eTIMS-ready. Greenfield monorepo: NestJS backend, Electron register, Next.js dashboard, shared types.
+![CI](https://github.com/Xdashio/quick-flow/actions/workflows/ci.yml/badge.svg)
+![Release](https://github.com/Xdashio/quick-flow/actions/workflows/release.yml/badge.svg)
 
-Target: single Nairobi retail/grocery | M-Pesa STK Push + Till fallback | no cards | PostgreSQL ledger.
+Offline-first point of sale for single-location retail/grocery. Cash is first-class, M-Pesa via Daraja STK Push, KRA eTIMS-ready. The till keeps selling with no network and syncs when back online.
 
-> Blueprint: `pos-system-blueprint.md` (architecture, tax, offline, hardware, pitfalls)
+![Register catalog](docs/images/register-catalog.png)
 
-## Stack (verified 2026-09-04)
+## Download
 
-| Layer | Choice | Version |
+Prebuilt installers are attached to each [GitHub Release](https://github.com/Xdashio/quick-flow/releases) (built by CI on every version tag).
+
+| OS | File | Install |
 |---|---|---|
-| Runtime | Node.js Active LTS | 24.x (requires >=20.19) |
-| Backend | NestJS | 12.0.1 + Prisma 7.10 + PostgreSQL 16 |
-| Types | TypeScript strict | 7.x + `@pos/shared` |
-| Register | Electron 44 + React 19 + Vite 8 | SQLite + better-sqlite3 13 + SQLCipher |
-| Dashboard | Next.js App Router | 16.3.4 + React 19 |
-| Payments | Daraja STK Push (sandbox) + Till manual reconcile | |
-| Tax | KRA eTIMS VSCU (queued when offline) | |
+| Ubuntu / Debian | `register_*.deb` | `sudo dpkg -i register_*.deb` |
+| Any Linux distro | `QuickFlow Register-*.AppImage` | `chmod +x` it, then run |
+| Windows 10 / 11 | `QuickFlow Register Setup *.exe` | Run the installer |
+
+> Per-till data (offline SQLite cache, queued sales, printer output, backend URL) lives in the per-user app-data folder — `~/.config/register` (Linux), `%APPDATA%/register` (Windows) — so reinstalls and updates never wipe sales history.
+
+## Features
+
+**Register (till)**
+- Offline-first cash checkout: sales queue locally and auto-sync when online
+- Product catalog + tax categories synced from backend; barcode scan, search, weighed items
+- ESC/POS receipts (network printer or virtual-printer file), cash-drawer kick, reason-coded no-sale opens
+- Product image cache for fast catalog browsing
+- Per-till backend URL configurable in-app by a technician — no rebuild, no env vars
+
+**Backend**
+- Products, tax categories (basis points), categories, inventory ledger + materialized stock view
+- Transactions with idempotent client UUIDs and a guarded state machine
+- Checkout + drawer-event endpoints the register syncs against
+- M-Pesa Daraja STK Push + Till fallback, KRA eTIMS queue
+
+**Dashboard**
+- Manager view over live backend data (Next.js)
 
 ## Monorepo layout
 
 ```
-pos-system-blueprint.md   # technical blueprint (single source of truth)
-package.json              # npm workspaces: shared, backend, register, dashboard
-docker-compose.yml        # postgres:16-alpine (pos_postgres)
-shared/src/index.ts       # canonical types — integer cents, NUMERIC(10,3), enums
-backend/                  # NestJS API (Prisma adapter-pg)
-  prisma/schema.prisma    # locations, users, products, tax_categories, inventory_movements (ledger), current_inventory (matview), transactions (client-UUID, state machine), transaction_line_items (frozen price/tax), payments, customers
-  src/prisma/             # PrismaModule/Service
-dashboard/                # Next.js 16 manager dashboard (Phase 0 placeholder, Phase 9 live data)
-register/                 # Electron + React 19 SPA (SQLite offline-first, Phase 2 catalog sync)
+package.json            # npm workspaces: shared, backend, register, dashboard
+pos-system-blueprint.md # architecture, tax, offline, hardware (design reference)
+shared/                 # canonical types — integer cents, basis points, enums
+backend/                # NestJS API + Prisma (PostgreSQL)
+register/               # Electron + React till (SQLite offline-first)
+  electron/             # main / preload / sync / checkout queue / printer
+  build/                # app icons (generated from assets/quickflow-icon.png)
+dashboard/              # Next.js manager dashboard
+assets/                 # logo sources
+docs/                   # verification notes, screenshots
 ```
 
-## Quick start
+## Development
+
+Prerequisites: Node.js ≥ 20.19, Docker.
 
 ```bash
-# DB
-npm run db:up        # docker compose up -d (pos_postgres)
+npm install
+
+# Postgres
+npm run db:up
 npm run db:ready
 
-# Backend (needs DATABASE_URL in backend/.env — see .env.example)
-npm run dev:backend  # http://localhost:3000/api  (health: /api/health)
+# Backend (needs backend/.env — copy backend/.env.example)
+npm run dev:backend      # http://localhost:3000/api
 
 # Dashboard
-npm run dev:dashboard # http://localhost:3001
+npm run dev:dashboard    # http://localhost:3001
 
-# Register
-npm run dev:register  # Electron + Vite
+# Register (Electron + Vite hot reload)
+npm run dev:register
 ```
 
-Postgres: `postgresql://pos_user:pos_password@localhost:5432/pos_db` (docker-compose)
+Seed the register's local SQLite cache for dev: `npm run db:init --workspace=register`.
 
-## Phase 0 — what ships
+## Building installers
 
-- Full Prisma schema from blueprint §3 (all tables, FKs, indexes, `inventory_movements` ledger + `current_inventory` matview)
-- NestJS skeleton: `GET /api` + `GET /api/health`, Prisma connection, validation pipe, CORS
-- Shared types: `UnitType`, `TransactionStatus`, `PaymentMethod`, `InventoryReason`, etc. — integer cents, basis points
-- Dashboard & register shells (Phase 0 placeholders, wired to real backend health)
-- CI: `.github/workflows/ci.yml` (postgres service, npm ci, build, lint)
+```bash
+npm run electron:build:linux --workspace=register   # AppImage + .deb → register/release/
+npm run electron:build:win --workspace=register     # NSIS .exe (or via CI)
+```
 
-See `pos-system-blueprint.md` § Suggested Build Sequence for phases 1-12.
+Release flow: push a tag (`git tag v0.2.0 && git push origin v0.2.0`) and the `Release` workflow builds Linux + Windows installers and publishes them to GitHub Releases automatically.
 
-## Phase 1 preview (next commit)
+App icons live in `register/build/` (`icon.png` / `icon.ico` / `icon.icns`), generated from `assets/quickflow-icon.png`. Regenerate after changing the logo with `sharp` + `png2icons` (both already in devDependencies).
 
-- `POST/GET/PATCH/DELETE /api/products` + `GET /api/products/barcode/:barcode` (real DB, SKU unique, barcode index)
-- `POST/GET/PATCH/DELETE /api/tax-categories` (basis points, admin-editable VAT 16%/0%)
-- `POST /api/transactions` (DRAFT, client-UUID idempotent) + `PATCH /api/transactions/:id` (guarded state machine)
-- `POST /api/inventory/movements` (append-only ledger, refresh matview) + `GET /api/inventory/current/:productId`
-- Anti-mock: every endpoint reads/writes real PostgreSQL via Prisma, verified with curl + psql
+## Tech stack
 
-## Security
+| Layer | Choice |
+|---|---|
+| Runtime | Node.js Active LTS (≥ 20.19) |
+| Backend | NestJS + Prisma + PostgreSQL 16 |
+| Register | Electron + React 19 + Vite, SQLite via better-sqlite3 |
+| Dashboard | Next.js App Router + React 19 |
+| Types | TypeScript strict, `@pos/shared` |
+| Payments | Daraja STK Push + Till reconcile (no cards) |
+| Tax | KRA eTIMS-ready, VAT in basis points |
 
-- No PCI-DSS (no cards), but: Daraja secrets via env, KRA DPA 2019 PII, M-Pesa receipt reconciliation, PIN + audit logs
-- At-rest: Postgres volume encryption + SQLCipher; in-transit: TLS
+## Docs
+
+- `pos-system-blueprint.md` — full system design
+- `docs/PHASE1_VERIFICATION.md` — backend verification transcript (curl + psql)
 
 ## License
 
-UNLICENSED (private)
-
----
-
-## Phase 1 — Database Schema & Backend API Skeleton (verified 2026-09-04)
-
-Implemented full blueprint schema as Prisma entities + migrations + real NestJS REST.
-
-**Endpoints (all hit real PostgreSQL via Prisma, no mocks):**
-
-| Method | Path | Description | Source |
-|---|---|---|---|
-| CRUD | `POST/GET/PATCH/DELETE /api/products` | SKU unique, barcode indexed, price_cents int, weighted | `backend/src/products/products.service.ts` |
-| Scan | `GET /api/products/barcode/:barcode` | Grocery scan lookup | `backend/src/products/products.controller.ts:18` |
-| CRUD | `POST/GET/PATCH/DELETE /api/tax-categories` | name + rate_bp (basis points) | `backend/src/tax-categories/` |
-| Create | `POST /api/transactions` | client-UUID idempotent, DRAFT creation with lineItems frozen | `backend/src/transactions/transactions.service.ts` |
-| Patch | `PATCH /api/transactions/:id` | Guarded state machine — rejects illegal (e.g. COMPLETED→DRAFT 400) | `backend/src/transactions/transactions.service.ts:19` |
-| Ledger | `POST /api/inventory/movements` | append-only, `quantityDelta NUMERIC(10,3)`, refresh matview | `backend/src/inventory/inventory.service.ts:35` |
-| Stock | `GET /api/inventory/current/:productId` | reads `current_inventory` matview (derived SUM), not hardcoded | `backend/src/inventory/inventory.service.ts:55` |
-
-**State machine:** `DRAFT→IN_PROGRESS→AWAITING_PAYMENT→PAYMENT_CAPTURED→COMPLETED` with `PAYMENT_FAILED→VOIDED`, `COMPLETED→REFUND_REQUESTED→REFUNDED`, `COMPLETED→VOID_REQUESTED→VOIDED` — plus cash shortcuts (`IN_PROGRESS→COMPLETED`) — enforced in `assertTransition`.
-
-**Materialized view:** `backend/prisma/migrations/20250904_current_inventory_view/migration.sql` — `REFRESH MATERIALIZED VIEW CONCURRENTLY` after each movement.
-
-**Verification:** see `docs/PHASE1_VERIFICATION.md` (curl + psql transcripts). Example: `POST /api/products` → `GET /api/products/barcode/012345678905` → `POST /api/transactions` → `PATCH DRAFT→IN_PROGRESS→COMPLETED` → illegal `COMPLETED→DRAFT` 400 → `psql SELECT * FROM current_inventory` shows `98.000` (100 receiving −2 sale).
+Private — all rights reserved.

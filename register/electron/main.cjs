@@ -1,5 +1,6 @@
 // Electron main process — creates real SQLite file on disk & runs background SyncService
 const { app, BrowserWindow, ipcMain } = require("electron");
+const backendConfig = require("./backend-config.cjs");
 const path = require("path");
 const fs = require("fs");
 const Database = require("better-sqlite3");
@@ -7,13 +8,29 @@ const SyncService = require("./sync-service.cjs");
 const CheckoutQueue = require("./checkout-queue.cjs");
 const RegisterPrinter = require("./printer.cjs");
 
-const dbPath = path.resolve(__dirname, "../data/pos.db");
+// IMPORTANT: all mutable, per-install data (SQLite DB, image cache, virtual
+// printer output) MUST live under Electron's userData directory, never
+// relative to the app's own install/bundle folder. Two real failure modes
+// this avoids:
+//  1. A packaged Linux AppImage mounts as a read-only filesystem at
+//     runtime — any write relative to __dirname would fail outright.
+//  2. Installer updates on Windows/Linux typically replace the entire
+//     install directory — storing data there would silently wipe every
+//     cashier's offline sales history and settings on every app update.
+// userData is writable and persists across app updates on every platform.
+//
+// Paths are resolved LAZILY (inside functions / after whenReady) because
+// app.getPath("userData") throws if called before the app is ready in some
+// Electron versions. Never call it at module top-level.
+const { getDbPath, getImagesDir, getVirtualPrinterDir } = require("./paths.cjs");
+const getDbPathLazy = () => getDbPath();
 let syncService = null;
 let checkoutQueue = null;
 let registerPrinter = null;
 let mainWindow = null;
 
 function getDb() {
+  const dbPath = getDbPathLazy();
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
@@ -26,10 +43,10 @@ function initDb() {
   db.close();
 
   // Ensure the image cache directory exists
-  const imagesDir = path.join(__dirname, "../data/images");
+  const imagesDir = getImagesDir();
   fs.mkdirSync(imagesDir, { recursive: true });
 
-  console.log(`[electron] SQLite initialized at ${dbPath}`);
+  console.log(`[electron] SQLite initialized at ${getDbPathLazy()}`);
 }
 
 function setupIpc() {
@@ -200,7 +217,7 @@ function setupIpc() {
   });
 
   // ── Image cache ─────────────────────────────────────────────────────────────
-  const imagesDir = path.join(__dirname, "../data/images");
+  const imagesDir = getImagesDir();
 
   /**
    * Returns the local file:// path for a cached product image, or null if not cached.
@@ -303,7 +320,7 @@ function createWindow() {
   });
 
   const devUrl = "http://localhost:5173";
-  const prodFile = path.join(__dirname, "../dist/index.html");
+  const prodFile = path.join(__dirname, "../dist/renderer/index.html");
 
   if (fs.existsSync(prodFile)) {
     mainWindow.loadFile(prodFile);
@@ -321,30 +338,35 @@ app.whenReady().then(() => {
   initDb();
   // Initialize printer & checkout queue before IPC wiring
   registerPrinter = new RegisterPrinter({
-    virtualDir: path.join(__dirname, "../data/virtual-printer"),
+    virtualDir: getVirtualPrinterDir(),
     printerHost: process.env.POS_PRINTER_HOST,
     printerPort: process.env.POS_PRINTER_PORT,
   });
   checkoutQueue = new CheckoutQueue({
-    dbPath,
-    apiUrls: [
-      process.env.POS_API_URL,
-      "http://localhost:3000/api",
-      "https://quickflow-backend.up.railway.app/api",
-    ].filter(Boolean),
-    virtualDir: path.join(__dirname, "../data/virtual-printer"),
+    dbPath: getDbPathLazy(),
+    apiUrl: backendConfig.resolveApiUrls(app)[0],
+    virtualDir: getVirtualPrinterDir(),
   });
 
   setupIpc();
 
+  // Backend URL config — lets a technician point this till at the right
+  // local backend without rebuilding or setting env vars (see backend-config.cjs)
+  ipcMain.handle("config:get-backend-url", () => backendConfig.getBackendUrl(app));
+  ipcMain.handle("config:set-backend-url", (_event, url) => {
+    const saved = backendConfig.setBackendUrl(app, url);
+    // Re-point sync immediately; it will propagate to checkoutQueue on its
+    // next tick via setApiUrl(), same as normal failover already does.
+    const apiUrls = backendConfig.resolveApiUrls(app);
+    syncService.apiUrls = apiUrls;
+    syncService.apiUrl = apiUrls[0];
+    return saved;
+  });
+
   // Initialize and start background sync service
   syncService = new SyncService({
-    dbPath,
-    apiUrls: [
-      process.env.POS_API_URL,
-      "http://localhost:3000/api",
-      "https://quickflow-backend.up.railway.app/api",
-    ].filter(Boolean),
+    dbPath: getDbPathLazy(),
+    apiUrls: backendConfig.resolveApiUrls(app),
     intervalMs: 30000,
     checkoutQueue, // inject for flush on each sync tick
   });

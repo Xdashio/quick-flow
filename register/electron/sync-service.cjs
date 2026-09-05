@@ -3,6 +3,7 @@
 const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
+const { getDbPath } = require("./paths.cjs");
 
 // Backend URLs to try, in order. Explicit env wins; otherwise prefer the
 // local dev backend, then fall back to the deployed one so a register with
@@ -15,7 +16,9 @@ const API_URL_CANDIDATES = [
 
 class SyncService {
   constructor(options = {}) {
-    this.dbPath = options.dbPath || path.resolve(__dirname, "../data/pos.db");
+    // Default MUST be userData-based (see paths.cjs): bundle-relative
+    // __dirname paths are read-only inside an AppImage and wiped on update.
+    this.dbPath = options.dbPath || getDbPath();
     this.apiUrls =
       options.apiUrls ||
       (options.apiUrl ? [options.apiUrl] : null) ||
@@ -365,7 +368,7 @@ class SyncService {
   /**
    * Downloads and caches a product image to disk.
    * Skips if the image_key hasn't changed since last cache.
-   * Images are stored as: register/data/images/<productId>.<ext>
+   * Images are stored as: <userData>/images/<productId>.<ext>
    */
   async cacheProductImage(db, product) {
     const imageKey = product.imageKey || product.image_key;

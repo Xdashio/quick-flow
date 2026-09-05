@@ -7,10 +7,13 @@ const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
 const RegisterPrinter = require("./printer.cjs");
+const { getDbPath } = require("./paths.cjs");
 
 class CheckoutQueue {
   constructor(options = {}) {
-    this.dbPath = options.dbPath || path.resolve(__dirname, "../data/pos.db");
+    // Default MUST be userData-based (see paths.cjs): bundle-relative
+    // __dirname paths are read-only inside an AppImage and wiped on update.
+    this.dbPath = options.dbPath || getDbPath();
     this.apiUrl = options.apiUrl || process.env.POS_API_URL || "http://localhost:3000/api";
     this.printer = new RegisterPrinter({ virtualDir: options.virtualDir });
     // alias for legacy

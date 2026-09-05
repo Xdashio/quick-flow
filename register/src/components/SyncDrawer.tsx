@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { SyncStatus } from "../lib/types";
 import { IconClose, IconSync, IconInfo } from "./icons";
+import { posApi } from "../lib/api";
 
 interface SyncDrawerProps {
   isOpen: boolean;
@@ -15,10 +16,39 @@ export const SyncDrawer: React.FC<SyncDrawerProps> = ({
   syncStatus,
   onTriggerSync,
 }) => {
+  const [backendUrlInput, setBackendUrlInput] = useState("");
+  const [savedBackendUrl, setSavedBackendUrl] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    posApi.getBackendUrl().then((url) => {
+      setSavedBackendUrl(url);
+      setBackendUrlInput(url || "");
+    });
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const isSyncing = syncStatus?.status === "syncing";
   const isOnline = syncStatus?.isOnline ?? true;
+
+  const handleSaveBackendUrl = async () => {
+    setSaveState("saving");
+    const saved = await posApi.setBackendUrl(backendUrlInput.trim() || null);
+    setSavedBackendUrl(saved);
+    setSaveState("saved");
+    setTimeout(() => setSaveState("idle"), 1500);
+  };
+
+  const handleResetBackendUrl = async () => {
+    setSaveState("saving");
+    const saved = await posApi.setBackendUrl(null);
+    setSavedBackendUrl(saved);
+    setBackendUrlInput("");
+    setSaveState("saved");
+    setTimeout(() => setSaveState("idle"), 1500);
+  };
 
   return (
     <div
@@ -172,6 +202,85 @@ export const SyncDrawer: React.FC<SyncDrawerProps> = ({
                 /api/products
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Backend URL Configuration */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-muted)", textTransform: "uppercase" }}>
+            Backend Server
+          </span>
+          <div
+            style={{
+              padding: 12,
+              borderRadius: "var(--radius-md)",
+              backgroundColor: "var(--bg-surface-elevated)",
+              border: "1px solid var(--border-subtle)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <p style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4, margin: 0 }}>
+              Point this till at your shop's backend (e.g. <code>http://192.168.1.50:3000/api</code>).
+              Leave blank to use automatic detection (local network, then cloud).
+            </p>
+            <input
+              type="text"
+              value={backendUrlInput}
+              onChange={(e) => setBackendUrlInput(e.target.value)}
+              placeholder="http://192.168.1.50:3000/api"
+              style={{
+                fontSize: 12,
+                fontFamily: "var(--font-mono)",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--border-subtle)",
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                outline: "none",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={handleSaveBackendUrl}
+                disabled={saveState === "saving"}
+                style={{
+                  flex: 1,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  backgroundColor: "var(--accent-emerald)",
+                  color: "#052e16",
+                  cursor: "pointer",
+                }}
+              >
+                {saveState === "saving" ? "Saving..." : saveState === "saved" ? "Saved ✓" : "Save"}
+              </button>
+              <button
+                onClick={handleResetBackendUrl}
+                disabled={saveState === "saving"}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border-subtle)",
+                  backgroundColor: "transparent",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                Use Automatic
+              </button>
+            </div>
+            {savedBackendUrl && (
+              <span style={{ fontSize: 10.5, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                Currently pinned to: {savedBackendUrl}
+              </span>
+            )}
           </div>
         </div>
 

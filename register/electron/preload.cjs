@@ -48,4 +48,11 @@ contextBridge.exposeInMainWorld("posApi", {
     ipcRenderer.invoke("images:cache-image", args),
   evictImageCache: (productId) =>
     ipcRenderer.invoke("images:evict-cache", productId),
+
+  // Backend URL config — technician-facing, so the till can be pointed at
+  // the right local backend without rebuilding or env vars
+  getBackendUrl: () =>
+    ipcRenderer.invoke("config:get-backend-url"),
+  setBackendUrl: (url) =>
+    ipcRenderer.invoke("config:set-backend-url", url),
 });

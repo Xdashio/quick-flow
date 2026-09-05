@@ -1,6 +1,13 @@
 {
   "name": "register",
   "version": "0.1.0",
+  "description": "Quick Flow offline-first POS register",
+  "homepage": "https://github.com/Xdashio/quick-flow",
+  "desktopName": "com.quickflow.pos.register.desktop",
+  "author": {
+    "name": "Quick Flow",
+    "email": "support@quickflow.co.ke"
+  },
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -8,9 +15,51 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "electron:dev": "electron .",
+    "electron:dev": "concurrently -k -n vite,electron \"vite\" \"wait-on tcp:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:linux": "npm run build && electron-builder --linux",
     "lint": "eslint src --ext .ts,.tsx",
     "db:init": "node scripts/init-db.mjs"
+  },
+  "build": {
+    "appId": "com.quickflow.pos.register",
+    "productName": "QuickFlow Register",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "build/icon.png",
+      "category": "Office",
+      "maintainer": "Quick Flow <support@quickflow.co.ke>",
+      "syncDesktopName": true,
+      "description": "Quick Flow offline-first POS register"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.business"
+    }
   },
   "dependencies": {
     "@pos/shared": "*",
@@ -24,8 +73,13 @@
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
-    "electron": "^44.2.0",
+    "concurrently": "^10.0.5",
+    "electron": "44.2.0",
+    "electron-builder": "^26.15.3",
+    "png2icons": "^2.0.1",
+    "sharp": "^0.35.4",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "wait-on": "^9.1.0"
   }
 }

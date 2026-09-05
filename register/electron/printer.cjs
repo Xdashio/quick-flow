@@ -4,13 +4,16 @@
 
 const fs = require("fs");
 const path = require("path");
+const { getVirtualPrinterDir } = require("./paths.cjs");
 
 const ESC = 0x1b;
 const GS = 0x1d;
 
 class RegisterPrinter {
   constructor(options = {}) {
-    this.virtualDir = options.virtualDir || path.join(__dirname, "../data/virtual-printer");
+    // Default MUST be userData-based (see paths.cjs): bundle-relative
+    // __dirname paths are read-only inside an AppImage and wiped on update.
+    this.virtualDir = options.virtualDir || getVirtualPrinterDir();
     this.printerHost = options.printerHost || process.env.POS_PRINTER_HOST;
     this.printerPort = parseInt(options.printerPort || process.env.POS_PRINTER_PORT || "9100", 10);
     fs.mkdirSync(this.virtualDir, { recursive: true });

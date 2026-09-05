@@ -22,6 +22,9 @@ declare global {
       getImageLocalPath: (productId: string) => Promise<string | null>;
       cacheImage: (args: { productId: string; imageKey: string; imageUrl: string }) => Promise<{ cached: boolean; localPath?: string; reason?: string }>;
       evictImageCache: (productId: string) => Promise<{ removed: number }>;
+      // Backend URL config
+      getBackendUrl: () => Promise<string | null>;
+      setBackendUrl: (url: string | null) => Promise<string | null>;
     };
   }
 }
@@ -179,5 +182,27 @@ export const posApi = {
       return window.posApi.cacheImage(args);
     }
     return { cached: false, reason: "not in electron" };
+  },
+
+  /**
+   * The backend URL a technician has configured for this till (Electron only).
+   * Returns null in browser dev mode — there's no persisted per-machine config there.
+   */
+  async getBackendUrl(): Promise<string | null> {
+    if (window.posApi?.getBackendUrl) {
+      return window.posApi.getBackendUrl();
+    }
+    return null;
+  },
+
+  /**
+   * Point this till at a specific backend (e.g. the shop's local server on
+   * the LAN). Takes effect immediately, no restart needed. Electron only.
+   */
+  async setBackendUrl(url: string | null): Promise<string | null> {
+    if (window.posApi?.setBackendUrl) {
+      return window.posApi.setBackendUrl(url);
+    }
+    return null;
   },
 };
