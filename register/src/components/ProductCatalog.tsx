@@ -24,13 +24,16 @@ const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
 
     let cancelled = false;
 
+    // Direct HTTP/HTTPS image URL fallback (works in dev & web immediately)
+    if (product.image_key.startsWith("http://") || product.image_key.startsWith("https://")) {
+      setSrc(product.image_key);
+    }
+
     posApi.getImageLocalPath(product.id).then((localPath) => {
       if (cancelled) return;
       if (localPath) {
         setSrc(localPath);
       }
-      // If not cached yet, it will be downloaded by the sync service on next tick.
-      // We don't block the UI — placeholder shows until then.
     }).catch(() => {/* ignore */});
 
     return () => { cancelled = true; };

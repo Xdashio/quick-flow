@@ -25,8 +25,9 @@ export interface CashSalePayload {
   createdAt: string;
 }
 
-const BERKELEY_LOCATION_ID = "61978774-9cec-4866-8cc4-9a27b4c23b98"; // seeded location, fallback for dev
-const CASHIER_ID = "900f4564-5be0-4358-864d-f8ef96e75209"; // seeded cashier
+const DEFAULT_LOCATION_ID = "11111111-1111-1111-8111-111111111111"; // Main Store - Nairobi CBD
+const DEFAULT_REGISTER_ID = "22222222-2222-2222-8222-222222222222"; // POS Terminal 1
+const DEFAULT_CASHIER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; // admin
 
 export function buildCashSalePayload(
   items: CartItem[],
@@ -47,9 +48,9 @@ export function buildCashSalePayload(
 
   return {
     id,
-    locationId: opts.locationId || BERKELEY_LOCATION_ID,
-    registerId: opts.registerId || undefined,
-    cashierId: opts.cashierId || CASHIER_ID,
+    locationId: opts.locationId || DEFAULT_LOCATION_ID,
+    registerId: opts.registerId || DEFAULT_REGISTER_ID,
+    cashierId: opts.cashierId || DEFAULT_CASHIER_ID,
     subtotalCents: totals.subtotalCents,
     taxCents: totals.totalTaxCents,
     totalCents: totals.grandTotalCents,

@@ -24,3 +24,5 @@ skills-lock.jsonvenv/
 virtual-printer
 venv
 skills-lock.json
+dashboard/next-env.d.ts
+

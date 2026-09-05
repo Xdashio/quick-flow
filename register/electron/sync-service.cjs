@@ -10,6 +10,7 @@ const { getDbPath } = require("./paths.cjs");
 // a missing/down local backend still syncs. Network failures trigger failover.
 const API_URL_CANDIDATES = [
   process.env.POS_API_URL,
+  "https://api.crestcyber.co.ke/api",
   "http://localhost:3000/api",
   "https://quickflow-backend.up.railway.app/api",
 ].filter(Boolean);
@@ -372,7 +373,14 @@ class SyncService {
    */
   async cacheProductImage(db, product) {
     const imageKey = product.imageKey || product.image_key;
-    const imageUrl = product.imageUrl || (this.cdnUrl ? `${this.cdnUrl}/${imageKey}` : null);
+    let imageUrl = product.imageUrl;
+    if (!imageUrl && imageKey) {
+      if (imageKey.startsWith("http://") || imageKey.startsWith("https://")) {
+        imageUrl = imageKey;
+      } else if (this.cdnUrl) {
+        imageUrl = `${this.cdnUrl}/${imageKey}`;
+      }
+    }
     if (!imageKey || !imageUrl) return;
 
     const path = require("path");
@@ -380,15 +388,25 @@ class SyncService {
     const imagesDir = path.join(path.dirname(this.dbPath), "images");
     fs.mkdirSync(imagesDir, { recursive: true });
 
+    // Clean extension (strip any query parameters)
+    let ext = ".jpg";
+    try {
+      const cleanPath = new URL(imageUrl, "http://localhost").pathname;
+      ext = path.extname(cleanPath).toLowerCase() || ".jpg";
+      if (![".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"].includes(ext)) {
+        ext = ".jpg";
+      }
+    } catch {
+      ext = ".jpg";
+    }
+
     // Check if this exact key is already on disk
     const row = db.prepare(`SELECT image_key, image_cached_at FROM products WHERE id = ?`).get(product.id);
     if (row && row.image_key === imageKey && row.image_cached_at) {
-      const ext = path.extname(imageKey).toLowerCase() || ".jpg";
       const destPath = path.join(imagesDir, `${product.id}${ext}`);
       if (fs.existsSync(destPath)) return; // already cached
     }
 
-    const ext = path.extname(imageKey).toLowerCase() || ".jpg";
     const destPath = path.join(imagesDir, `${product.id}${ext}`);
 
     // Remove stale files with different extension
