@@ -67,7 +67,7 @@ export function DeactivateButton({ userId, userName, isActive, role }: Props) {
                 ? `This will immediately prevent ${userName} from logging in.`
                 : `This will restore ${userName}'s login access.`}
             </p>
-            {error && <div className="form-error" style={{ marginTop: 8 }}>{error}</div>}
+            {error && <div className="form-error" role="alert" style={{ marginTop: 8 }}>{error}</div>}
             <div className="deactivate-modal-actions">
               <button className="btn btn-secondary" onClick={cancel} disabled={loading}>
                 Cancel

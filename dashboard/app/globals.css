@@ -983,3 +983,201 @@ select option {
 .deactivate-modal.open .deactivate-modal-content {
   display: block;
 }
+
+/* ─── Responsive: mobile navigation, grids, tables ─────────────────────── */
+/* Mobile-only chrome (hidden on desktop widths). */
+.mobile-header {
+  display: none;
+}
+.sidebar-backdrop {
+  display: none;
+}
+
+/* Breakpoint-aware grids used by client components (replaces inline styles
+   so they can collapse — inline styles cannot respond to media queries). */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.form-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.filter-pill {
+  min-height: 36px;
+}
+
+.table-wrap {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+@keyframes sidebarFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 1024px) {
+  .page-content {
+    padding: 20px;
+  }
+  .topbar {
+    padding: 0 20px;
+  }
+}
+
+@media (max-width: 900px) {
+  /* Sidebar becomes an off-canvas drawer; .open is toggled by DashboardShell. */
+  .sidebar {
+    transform: translateX(-105%);
+    transition: transform 0.24s var(--ease-spring);
+    z-index: 60;
+    width: min(300px, 84vw);
+    box-shadow: var(--shadow-elevated);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(0, 0, 0, 0.55);
+    animation: sidebarFadeIn 0.18s ease;
+  }
+  .main {
+    margin-left: 0;
+  }
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .mobile-brand {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+  .mobile-menu-btn {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface-subtle);
+    color: var(--text-primary);
+    flex-shrink: 0;
+  }
+  .sidebar-link {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-content {
+    padding: 16px 12px;
+    gap: 16px;
+  }
+  .topbar {
+    padding: 8px 12px;
+    gap: 8px;
+    height: auto;
+    min-height: var(--topbar-height);
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .topbar h2 {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar-badge {
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .section-header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 12px 14px;
+  }
+  .section-body {
+    padding: 16px 14px;
+  }
+  th,
+  td {
+    padding: 10px 12px;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+  }
+  .kpi-card {
+    padding: 14px;
+  }
+  .kpi-value {
+    font-size: 19px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .form-grid-2col {
+    grid-template-columns: 1fr;
+  }
+  .auth-card-inner {
+    padding: 28px 22px;
+  }
+  .deactivate-modal-actions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 768px) {
+  /* iOS Safari auto-zooms into inputs below 16px — keep 16px on narrow screens. */
+  input,
+  select,
+  textarea,
+  .auth-input,
+  .custom-select-trigger {
+    font-size: 16px;
+  }
+}
+
+@media (pointer: coarse) {
+  /* Primary touch input: minima per platform guidance (44px iOS / 48dp Android). */
+  .btn {
+    min-height: 44px;
+  }
+  .filter-pill {
+    min-height: 44px;
+  }
+  .theme-toggle {
+    width: 40px;
+    height: 40px;
+  }
+  .sidebar-logout {
+    padding: 10px 12px;
+  }
+  .custom-select-trigger {
+    min-height: 44px;
+  }
+  .custom-select-option {
+    padding: 12px 10px;
+  }
+}

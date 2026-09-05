@@ -13,6 +13,7 @@ interface Props {
 export function ProductCategoryPicker({ productId, categoryId, categories }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
   const options = [
@@ -23,6 +24,7 @@ export function ProductCategoryPicker({ productId, categoryId, categories }: Pro
   async function handleChange(value: string) {
     setSaving(true);
     setError('');
+    setSaved(false);
     try {
       const res = await fetch(`/api/proxy/products/${productId}`, {
         method: 'PATCH',
@@ -34,6 +36,8 @@ export function ProductCategoryPicker({ productId, categoryId, categories }: Pro
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message ?? 'Failed to update category');
       }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update category');
@@ -45,7 +49,8 @@ export function ProductCategoryPicker({ productId, categoryId, categories }: Pro
   return (
     <div style={{ opacity: saving ? 0.6 : 1, minWidth: 150 }}>
       <Select id={`category-picker-${productId}`} value={categoryId ?? ''} onChange={handleChange} options={options} />
-      {error && <div style={{ fontSize: 11, color: 'var(--accent-rose)', marginTop: 4 }}>{error}</div>}
+      {error && <div role="alert" style={{ fontSize: 11, color: 'var(--accent-rose)', marginTop: 4 }}>{error}</div>}
+      {saved && !error && <div aria-live="polite" style={{ fontSize: 11, color: 'var(--accent-emerald)', marginTop: 4 }}>Saved</div>}
     </div>
   );
 }

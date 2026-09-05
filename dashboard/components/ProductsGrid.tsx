@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Select } from './Select';
+import { ConfirmDialog } from './ConfirmDialog';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface Product {
@@ -73,7 +74,7 @@ const ACCEPTED_EXT = /\.(jpg|jpeg|png|webp|gif|avif)$/i;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 /* ─── ProductCard ─────────────────────────────────────────────────────────── */
-function ProductCard({ product, onEdit }: { product: Product; onEdit: () => void }) {
+function ProductCard({ product, onEdit, highlighted = false }: { product: Product; onEdit: () => void; highlighted?: boolean }) {
   const margin = product.marginPct;
   const marginColor = margin === null ? 'var(--text-muted)' : margin >= 20 ? 'var(--accent-emerald)' : margin >= 0 ? 'var(--accent-amber)' : 'var(--accent-rose)';
   const cardImageUrl = resolveImageUrl(product);
@@ -93,6 +94,8 @@ function ProductCard({ product, onEdit }: { product: Product; onEdit: () => void
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
+        outline: highlighted ? '2px solid var(--accent-primary)' : 'none',
+        outlineOffset: 2,
       }}
       onMouseEnter={e => {
         (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent-primary)';
@@ -197,12 +200,14 @@ function ProductCard({ product, onEdit }: { product: Product; onEdit: () => void
 
 /* ─── EditPanel (Slide-over) ──────────────────────────────────────────────── */
 function EditPanel({
-  product, categories, taxCategories, onClose,
+  product, categories, taxCategories, onClose, onSaved,
 }: {
   product: Product;
   categories: Category[];
   taxCategories: TaxCategory[];
   onClose: () => void;
+  /** Merge an updated product into the grid immediately (optimistic UI + rollback). */
+  onSaved: (updated: Product) => void;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -224,6 +229,7 @@ function EditPanel({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [imgError, setImgError] = useState('');
 
   const [saving, setSaving] = useState(false);
@@ -268,10 +274,19 @@ function EditPanel({
       const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': putType }, body: file });
       if (!putRes.ok) throw new Error('Upload to storage failed');
 
-      await fetch(`/api/proxy/products/${product.id}`, {
+      const patchRes = await fetch(`/api/proxy/products/${product.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ imageKey: key }),
       });
+      if (!patchRes.ok) {
+        const data = await patchRes.json().catch(() => ({} as { message?: string }));
+        throw new Error(typeof data.message === 'string' ? data.message : 'Failed to save image');
+      }
+      // Server truth (includes the resolved imageUrl) updates the grid at once.
+      const updated = (await patchRes.json()) as Product;
+      onSaved(updated);
+      setImagePreview(null);
+      setPanelImgFailed(false);
       router.refresh();
     } catch (e) {
       setImgError(e instanceof Error ? e.message : 'Upload failed');
@@ -282,52 +297,98 @@ function EditPanel({
     }
   }
 
-  async function handleRemoveImage() {
+  async function handleRemoveImage(): Promise<boolean> {
     setImgError(''); setRemoving(true);
     try {
       const res = await fetch(`/api/proxy/products/${product.id}/image`, { method: 'DELETE', credentials: 'include' });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? 'Failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as { message?: unknown }));
+        throw new Error(typeof data.message === 'string' ? data.message : 'Failed to remove image');
+      }
       setImagePreview(null);
+      setPanelImgFailed(false);
+      onSaved({ ...product, imageKey: null, imageUrl: null });
       router.refresh();
+      return true;
     } catch (e) {
-      setImgError(e instanceof Error ? e.message : 'Failed to remove');
+      setImgError(e instanceof Error ? e.message : 'Failed to remove image');
+      return false;
     } finally { setRemoving(false); }
   }
 
-  /* ── Save product details ── */
-  const handleSave = useCallback(async () => {
+  /* ── Save product details (optimistic: grid updates instantly, rolls back on error) ── */
+  async function handleSave() {
     const price = parseFloat(priceCents);
     if (isNaN(price) || price < 0) { setError('Invalid selling price'); return; }
+    const costNum = costCents.trim() ? parseFloat(costCents) : null;
+    if (costNum !== null && (isNaN(costNum) || costNum < 0)) { setError('Invalid cost price'); return; }
+    const reorderNum = reorderPoint.trim() ? parseInt(reorderPoint, 10) : null;
+    if (reorderNum !== null && (isNaN(reorderNum) || reorderNum < 0)) { setError('Invalid reorder point'); return; }
 
-    setSaving(true); setError('');
+    const priceCentsVal = Math.round(price * 100);
+    const costCentsVal = costNum === null ? null : Math.round(costNum * 100);
+    const profitCentsVal = costCentsVal === null ? null : priceCentsVal - costCentsVal;
+    const marginPctVal =
+      costCentsVal === null || priceCentsVal <= 0 || profitCentsVal === null
+        ? null
+        : Math.round((profitCentsVal / priceCentsVal) * 1000) / 10;
+    const taxCat = taxCategories.find((t) => t.id === taxCategoryId) ?? null;
+
+    const previous = product;
+    const optimistic: Product = {
+      ...product,
+      name: name.trim(),
+      description: description.trim() || null,
+      sku: sku.trim(),
+      barcode: barcode.trim() || null,
+      priceCents: priceCentsVal,
+      costCents: costCentsVal,
+      profitCents: profitCentsVal,
+      marginPct: marginPctVal,
+      categoryId: categoryId || null,
+      taxCategory: taxCat ? { id: taxCat.id, name: taxCat.name, rateBp: taxCat.rateBp } : null,
+      unitType,
+      isWeighed,
+      reorderPoint: reorderNum,
+      active,
+    };
+
+    setSaving(true); setError(''); setSuccess(false);
+    onSaved(optimistic);
     try {
       const body: Record<string, unknown> = {
-        name: name.trim(),
-        description: description.trim() || null,
-        sku: sku.trim(),
-        barcode: barcode.trim() || null,
-        priceCents: Math.round(price * 100),
-        costCents: costCents.trim() ? Math.round(parseFloat(costCents) * 100) : null,
-        categoryId: categoryId || null,
+        name: optimistic.name,
+        description: optimistic.description,
+        sku: optimistic.sku,
+        barcode: optimistic.barcode,
+        priceCents: optimistic.priceCents,
+        costCents: optimistic.costCents,
+        categoryId: optimistic.categoryId,
         taxCategoryId: taxCategoryId || null,
-        unitType,
-        isWeighed,
-        reorderPoint: reorderPoint.trim() ? parseInt(reorderPoint, 10) : null,
-        active,
+        unitType: optimistic.unitType,
+        isWeighed: optimistic.isWeighed,
+        reorderPoint: optimistic.reorderPoint,
+        active: optimistic.active,
       };
 
       const res = await fetch(`/api/proxy/products/${product.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? 'Save failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as { message?: unknown }));
+        throw new Error(typeof data.message === 'string' ? data.message : 'Save failed');
+      }
 
       setSuccess(true);
-      setTimeout(() => { setSuccess(false); router.refresh(); }, 800);
+      router.refresh();
+      // Let the confirmation register, then return to the updated grid.
+      setTimeout(() => { onClose(); }, 650);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      onSaved(previous);
+      setError(e instanceof Error ? e.message : 'Save failed — your edits are preserved, try again');
     } finally { setSaving(false); }
-  }, [name, description, sku, barcode, priceCents, costCents, categoryId, taxCategoryId, unitType, isWeighed, reorderPoint, active, product.id, router]);
+  }
 
   return (
     <>
@@ -372,7 +433,7 @@ function EditPanel({
             aria-label="Close panel"
             title="Close"
             style={{
-              width: 32, height: 32, borderRadius: 'var(--radius-pill)',
+              width: 36, height: 36, borderRadius: 'var(--radius-pill)',
               background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-subtle)',
               color: 'var(--text-muted)', cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -413,7 +474,7 @@ function EditPanel({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading || removing}
-                  style={{ ...secondaryBtn, minHeight: 34, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  style={{ ...secondaryBtn, minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 8 }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -423,7 +484,7 @@ function EditPanel({
                   <span>{uploading ? 'Uploading…' : displayUrl ? 'Replace Image' : 'Upload Image'}</span>
                 </button>
                 {displayUrl && (
-                  <button type="button" onClick={handleRemoveImage} disabled={uploading || removing} style={{ ...dangerBtn, minHeight: 34, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <button type="button" onClick={() => { setImgError(''); setConfirmRemove(true); }} disabled={uploading || removing} style={{ ...dangerBtn, minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M3 6h18" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
@@ -433,7 +494,7 @@ function EditPanel({
                   </button>
                 )}
                 <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>JPG, PNG, WebP · Max 4 MB</p>
-                {imgError && <p style={{ fontSize: 11, color: 'var(--accent-rose)' }}>{imgError}</p>}
+                {imgError && <p role="alert" style={{ fontSize: 11, color: 'var(--accent-rose)' }}>{imgError}</p>}
               </div>
             </div>
             <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif" style={{ display: 'none' }}
@@ -443,7 +504,7 @@ function EditPanel({
           {/* ── Basic Info ── */}
           <fieldset style={fieldset}>
             <legend style={legendStyle}>Basic Info</legend>
-            <div style={formGrid}>
+            <div className="form-grid-2col">
               <div style={formGroup}>
                 <label style={inputLabel}>Product Name *</label>
                 <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Jogoo Maize Flour 2kg" />
@@ -471,7 +532,7 @@ function EditPanel({
           {/* ── Pricing ── */}
           <fieldset style={fieldset}>
             <legend style={legendStyle}>Pricing &amp; Tax</legend>
-            <div style={formGrid}>
+            <div className="form-grid-2col">
               <div style={formGroup}>
                 <label style={inputLabel}>Selling Price (KES) *</label>
                 <div style={inputWithPrefix}>
@@ -514,7 +575,7 @@ function EditPanel({
           {/* ── Classification ── */}
           <fieldset style={fieldset}>
             <legend style={legendStyle}>Classification</legend>
-            <div style={formGrid}>
+            <div className="form-grid-2col">
               <div style={formGroup}>
                 <label style={inputLabel}>Category</label>
                 <Select
@@ -566,13 +627,13 @@ function EditPanel({
 
           {/* ── Error / Success ── */}
           {error && (
-            <div style={{ padding: '10px 14px', background: 'var(--accent-rose-bg)', border: '1px solid rgba(224,109,115,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-rose)', fontSize: 13 }}>
+            <div role="alert" style={{ padding: '10px 14px', background: 'var(--accent-rose-bg)', border: '1px solid rgba(224,109,115,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-rose)', fontSize: 13 }}>
               {error}
             </div>
           )}
           {success && (
-            <div style={{ padding: '10px 14px', background: 'var(--accent-emerald-bg)', border: '1px solid rgba(95,173,124,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-emerald)', fontSize: 13 }}>
-              Product saved successfully
+            <div aria-live="polite" style={{ padding: '10px 14px', background: 'var(--accent-emerald-bg)', border: '1px solid rgba(95,173,124,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-emerald)', fontSize: 13 }}>
+              Product saved — closing…
             </div>
           )}
         </div>
@@ -595,6 +656,23 @@ function EditPanel({
           </button>
         </div>
       </div>
+
+      {confirmRemove && (
+        <ConfirmDialog
+          title="Remove Image"
+          message={`Remove the image from ${product.name}? The file is deleted from storage and this cannot be undone.`}
+          confirmLabel="Remove Image"
+          loading={removing}
+          error={imgError}
+          onCancel={() => {
+            if (!removing) setConfirmRemove(false);
+          }}
+          onConfirm={async () => {
+            const ok = await handleRemoveImage();
+            if (ok) setConfirmRemove(false);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -611,9 +689,6 @@ const fieldset: React.CSSProperties = {
 const legendStyle: React.CSSProperties = {
   padding: '0 8px', fontSize: 11, fontWeight: 700,
   color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase',
-};
-const formGrid: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
 };
 const formGroup: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 5,
@@ -655,8 +730,24 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
   const [editing, setEditing] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
+  // Local mirror of the server list so saves apply optimistically and the
+  // panel always sees live data. Reconciled whenever fresh props arrive.
+  const [items, setItems] = useState(products);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
-  const filtered = products.filter(p => {
+  useEffect(() => {
+    setItems(products);
+  }, [products]);
+
+  function handleSaved(updated: Product) {
+    setItems((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setHighlightId(updated.id);
+    setTimeout(() => {
+      setHighlightId((cur) => (cur === updated.id ? null : cur));
+    }, 1800);
+  }
+
+  const filtered = items.filter(p => {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()) || (p.barcode ?? '').includes(search);
     const matchActive = filterActive === 'all' || (filterActive === 'active' ? p.active : !p.active);
     return matchSearch && matchActive;
@@ -688,7 +779,7 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {(['all', 'active', 'inactive'] as const).map(v => (
-            <button key={v} onClick={() => setFilterActive(v)} style={{
+            <button key={v} onClick={() => setFilterActive(v)} className="filter-pill" style={{
               padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 12,
               fontWeight: filterActive === v ? 700 : 500, cursor: 'pointer',
               background: filterActive === v ? 'var(--accent-primary)' : 'var(--bg-surface)',
@@ -701,7 +792,7 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
           ))}
         </div>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-          {filtered.length} of {products.length}
+          {filtered.length} of {items.length}
         </span>
       </div>
 
@@ -711,24 +802,26 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
           {search ? `No products matching "${search}"` : 'No products found'}
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: 16,
-        }}>
+        <div className="products-grid">
           {filtered.map(p => (
-            <ProductCard key={p.id} product={p} onEdit={() => setEditing(p)} />
+            <ProductCard
+              key={p.id}
+              product={p}
+              highlighted={p.id === highlightId}
+              onEdit={() => setEditing(p)}
+            />
           ))}
         </div>
       )}
 
-      {/* Edit slide-over */}
+      {/* Edit slide-over — reads the live item so optimistic updates show inside the panel too */}
       {editing && (
         <EditPanel
-          product={editing}
+          product={items.find((p) => p.id === editing.id) ?? editing}
           categories={categories}
           taxCategories={taxCategories}
           onClose={() => setEditing(null)}
+          onSaved={handleSaved}
         />
       )}
 

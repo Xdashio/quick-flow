@@ -60,9 +60,9 @@ export function CreateCategoryForm({ categories }: Props) {
 
   return (
     <form onSubmit={handleSubmit} id="create-category-form">
-      {error && <div className="form-error" style={{ marginBottom: 12 }}>{error}</div>}
+      {error && <div className="form-error" role="alert" style={{ marginBottom: 12 }}>{error}</div>}
       {success && (
-        <div className="form-success" style={{ marginBottom: 12 }}>
+        <div className="form-success" aria-live="polite" style={{ marginBottom: 12 }}>
           {success}
         </div>
       )}

@@ -21,6 +21,8 @@ tsconfig.build.tsbuildinfo
 register/release/
 # Register runtime image cache (downloaded per-terminal at sync time)
 register/data/images/
+# Local dashboard build artifact for manual HostPinnacle upload (rebuilt per deploy)
+dashboard/.next.zip
 **/.agents/
 skills-lock.jsonvenv/
 virtual-printer

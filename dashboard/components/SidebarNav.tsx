@@ -103,9 +103,13 @@ const NAV: { section: string; items: NavItem[] }[] = [
 
 interface Props {
   user: { name: string; role: string } | null;
+  /** Mobile drawer state — ignored on desktop widths where the sidebar is always visible. */
+  mobileOpen?: boolean;
+  /** Called when a nav link is tapped (mobile drawer should close). */
+  onClose?: () => void;
 }
 
-export function SidebarNav({ user }: Props) {
+export function SidebarNav({ user, mobileOpen = false, onClose }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -130,7 +134,7 @@ export function SidebarNav({ user }: Props) {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${mobileOpen ? ' open' : ''}`} aria-label="Primary navigation">
       <div className="sidebar-logo">
         <h1>
           QuickFlow POS
@@ -150,6 +154,7 @@ export function SidebarNav({ user }: Props) {
                   href={item.href}
                   className={`sidebar-link ${active ? 'active' : ''}`}
                   id={`nav-${item.label.toLowerCase().replace(/[^a-z]/g, '-')}`}
+                  onClick={onClose}
                 >
                   <span className="icon">{item.icon(active)}</span>
                   <span>{item.label}</span>

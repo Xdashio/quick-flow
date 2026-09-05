@@ -13,6 +13,7 @@ export function CostPriceInput({ productId, costCents }: Props) {
   const router = useRouter();
   const [value, setValue] = useState(costCents === null ? '' : String(costCents / 100));
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
   async function save() {
@@ -26,6 +27,7 @@ export function CostPriceInput({ productId, costCents }: Props) {
 
     setSaving(true);
     setError('');
+    setSaved(false);
     try {
       const res = await fetch(`/api/proxy/products/${productId}`, {
         method: 'PATCH',
@@ -37,6 +39,8 @@ export function CostPriceInput({ productId, costCents }: Props) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message ?? 'Failed to update cost price');
       }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update cost price');
@@ -61,7 +65,8 @@ export function CostPriceInput({ productId, costCents }: Props) {
         }}
         style={{ width: 90, fontSize: 12.5, padding: '4px 8px' }}
       />
-      {error && <span style={{ fontSize: 10.5, color: 'var(--accent-rose)' }}>{error}</span>}
+      {error && <span role="alert" style={{ fontSize: 10.5, color: 'var(--accent-rose)' }}>{error}</span>}
+      {saved && !error && <span aria-live="polite" style={{ fontSize: 10.5, color: 'var(--accent-emerald)' }}>Saved</span>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
-import { SidebarNav } from '../../components/SidebarNav';
+import { DashboardShell } from '../../components/DashboardShell';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET ?? 'dev-jwt-secret-change-in-production',
@@ -26,9 +26,6 @@ export default async function DashboardLayout({
   const user = await getCurrentUser();
 
   return (
-    <div className="layout">
-      <SidebarNav user={user} />
-      <main className="main">{children}</main>
-    </div>
+    <DashboardShell user={user}>{children}</DashboardShell>
   );
 }

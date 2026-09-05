@@ -56,7 +56,7 @@ export function DeleteCategoryButton({ categoryId, categoryName, productCount, c
                 delete them first.
               </p>
             )}
-            {error && <div className="form-error" style={{ marginTop: 8 }}>{error}</div>}
+            {error && <div className="form-error" role="alert" style={{ marginTop: 8 }}>{error}</div>}
             <div className="deactivate-modal-actions">
               <button className="btn btn-secondary" onClick={() => setShow(false)} disabled={loading}>
                 Cancel

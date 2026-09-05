@@ -108,9 +108,9 @@ export function StockMovementForm({ products, locations, initialProductId }: Pro
 
   return (
     <form onSubmit={handleSubmit} id="stock-movement-form">
-      {error && <div className="form-error" style={{ marginBottom: 12 }}>{error}</div>}
+      {error && <div className="form-error" role="alert" style={{ marginBottom: 12 }}>{error}</div>}
       {success && (
-        <div className="form-success" style={{ marginBottom: 12 }}>
+        <div className="form-success" aria-live="polite" style={{ marginBottom: 12 }}>
           {success}
         </div>
       )}
