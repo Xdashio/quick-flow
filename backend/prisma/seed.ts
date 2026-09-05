@@ -18,30 +18,30 @@ async function main() {
 
   // 1. Seed canonical tax categories
   const standard = await prisma.taxCategory.upsert({
-    where: { id: '33333333-3333-3333-3333-333333333333' },
+    where: { id: '33333333-3333-4333-8333-333333333333' },
     update: { name: 'standard', rateBp: 1600 },
     create: {
-      id: '33333333-3333-3333-3333-333333333333',
+      id: '33333333-3333-4333-8333-333333333333',
       name: 'standard',
       rateBp: 1600,
     },
   });
 
   const zeroRated = await prisma.taxCategory.upsert({
-    where: { id: '44444444-4444-4444-4444-444444444444' },
+    where: { id: '44444444-4444-4444-8444-444444444444' },
     update: { name: 'zero-rated', rateBp: 0 },
     create: {
-      id: '44444444-4444-4444-4444-444444444444',
+      id: '44444444-4444-4444-8444-444444444444',
       name: 'zero-rated',
       rateBp: 0,
     },
   });
 
   const exempt = await prisma.taxCategory.upsert({
-    where: { id: '55555555-5555-5555-5555-555555555555' },
+    where: { id: '55555555-5555-5555-8555-555555555555' },
     update: { name: 'exempt', rateBp: 0 },
     create: {
-      id: '55555555-5555-5555-5555-555555555555',
+      id: '55555555-5555-5555-8555-555555555555',
       name: 'exempt',
       rateBp: 0,
     },
@@ -74,20 +74,20 @@ async function main() {
 
   // 3. Seed default store location & register
   const location = await prisma.location.upsert({
-    where: { id: '11111111-1111-1111-1111-111111111111' },
+    where: { id: '11111111-1111-1111-8111-111111111111' },
     update: { name: 'Main Store - Nairobi CBD' },
     create: {
-      id: '11111111-1111-1111-1111-111111111111',
+      id: '11111111-1111-1111-8111-111111111111',
       name: 'Main Store - Nairobi CBD',
       address: 'Kenyatta Avenue, Nairobi',
     },
   });
 
   await prisma.register.upsert({
-    where: { id: '22222222-2222-2222-2222-222222222222' },
+    where: { id: '22222222-2222-2222-8222-222222222222' },
     update: { name: 'POS Terminal 1', locationId: location.id },
     create: {
-      id: '22222222-2222-2222-2222-222222222222',
+      id: '22222222-2222-2222-8222-222222222222',
       name: 'POS Terminal 1',
       locationId: location.id,
     },
@@ -97,10 +97,10 @@ async function main() {
   const bcrypt = await import('bcryptjs');
   const pinHash = await bcrypt.default.hash('password123', 10);
   const adminUser = await prisma.user.upsert({
-    where: { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' },
+    where: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
     update: { name: 'admin', role: 'admin', active: true, pinHash },
     create: {
-      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       name: 'admin',
       role: 'admin',
       active: true,

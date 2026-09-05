@@ -45,6 +45,8 @@ model Product {
   imageKey      String?           @map("image_key") @db.VarChar(512)
   /** Reorder threshold — when total stock across locations falls at or below this, the product surfaces on the low-stock report. Null means no threshold is tracked. */
   reorderPoint  Int?              @map("reorder_point")
+  /** Buying/cost price in cents. Null means cost isn't tracked yet for this product (profit can't be computed until it's set). */
+  costCents     Int?              @map("cost_cents")
   active        Boolean           @default(true)
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
@@ -142,6 +144,8 @@ model TransactionLineItem {
   product         Product     @relation(fields: [productId], references: [id])
   quantity        Decimal     @db.Decimal(10, 3)
   unitPriceCents  Int         @map("unit_price_cents") // frozen at time of sale
+  /** Product's costCents at time of sale, frozen so later cost edits don't rewrite historical profit. Null if cost wasn't set on the product yet. */
+  unitCostCents   Int?        @map("unit_cost_cents")
   taxRateBp       Int         @map("tax_rate_bp")       // frozen at time of sale
   discountCents   Int         @default(0) @map("discount_cents")
   lineTotalCents  Int         @map("line_total_cents")
