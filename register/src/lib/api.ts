@@ -116,6 +116,20 @@ export const posApi = {
     return () => clearInterval(timer);
   },
 
+  async login(username: string, password: string): Promise<{ accessToken: string; user: { id: string; name: string; role: string } }> {
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const res = await fetch(`${apiUrl}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || `Login failed (${res.status})`);
+    }
+    return res.json();
+  },
+
   async completeCashSale(payload: any): Promise<any> {
     if (window.posApi?.completeCashSale) return window.posApi.completeCashSale(payload);
     const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";

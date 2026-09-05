@@ -202,29 +202,30 @@ function ProductCard({ product, onEdit, highlighted = false }: { product: Produc
 function EditPanel({
   product, categories, taxCategories, onClose, onSaved,
 }: {
-  product: Product;
+  product: Product | null;
   categories: Category[];
   taxCategories: TaxCategory[];
   onClose: () => void;
   /** Merge an updated product into the grid immediately (optimistic UI + rollback). */
-  onSaved: (updated: Product) => void;
+  onSaved: (saved: Product, isNew?: boolean) => void;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isCreate = !product;
 
   // Form state mirrors product fields
-  const [name, setName] = useState(product.name);
-  const [description, setDescription] = useState(product.description ?? '');
-  const [sku, setSku] = useState(product.sku);
-  const [barcode, setBarcode] = useState(product.barcode ?? '');
-  const [priceCents, setPriceCents] = useState(String(product.priceCents / 100));
-  const [costCents, setCostCents] = useState(product.costCents !== null ? String(product.costCents / 100) : '');
-  const [categoryId, setCategoryId] = useState(product.categoryId ?? '');
-  const [taxCategoryId, setTaxCategoryId] = useState(product.taxCategory?.id ?? '');
-  const [unitType, setUnitType] = useState(product.unitType);
-  const [isWeighed, setIsWeighed] = useState(product.isWeighed);
-  const [reorderPoint, setReorderPoint] = useState(product.reorderPoint !== null ? String(product.reorderPoint) : '');
-  const [active, setActive] = useState(product.active);
+  const [name, setName] = useState(product?.name ?? '');
+  const [description, setDescription] = useState(product?.description ?? '');
+  const [sku, setSku] = useState(product?.sku ?? '');
+  const [barcode, setBarcode] = useState(product?.barcode ?? '');
+  const [priceCents, setPriceCents] = useState(product ? String(product.priceCents / 100) : '');
+  const [costCents, setCostCents] = useState(product?.costCents !== null && product?.costCents !== undefined ? String(product.costCents / 100) : '');
+  const [categoryId, setCategoryId] = useState(product?.categoryId ?? '');
+  const [taxCategoryId, setTaxCategoryId] = useState(product?.taxCategory?.id ?? '');
+  const [unitType, setUnitType] = useState(product?.unitType ?? 'each');
+  const [isWeighed, setIsWeighed] = useState(product?.isWeighed ?? false);
+  const [reorderPoint, setReorderPoint] = useState(product?.reorderPoint !== null && product?.reorderPoint !== undefined ? String(product.reorderPoint) : '');
+  const [active, setActive] = useState(product?.active ?? true);
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -236,13 +237,24 @@ function EditPanel({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const baseImageUrl = resolveImageUrl(product);
+  const baseImageUrl = product ? resolveImageUrl(product) : null;
   const displayUrl = imagePreview ?? baseImageUrl;
   const [panelImgFailed, setPanelImgFailed] = useState(false);
   const showPanelImg = Boolean(displayUrl) && !panelImgFailed;
 
+  /* ── Live Profit & Margin Calculation (Continuous as user types) ── */
+  const parsedPrice = parseFloat(priceCents);
+  const parsedCost = costCents.trim() ? parseFloat(costCents) : null;
+  const livePriceCents = !isNaN(parsedPrice) && parsedPrice >= 0 ? Math.round(parsedPrice * 100) : null;
+  const liveCostCents = parsedCost !== null && !isNaN(parsedCost) && parsedCost >= 0 ? Math.round(parsedCost * 100) : null;
+  const liveProfitCents = (livePriceCents !== null && liveCostCents !== null) ? livePriceCents - liveCostCents : null;
+  const liveMarginPct = (livePriceCents !== null && livePriceCents > 0 && liveProfitCents !== null)
+    ? Math.round((liveProfitCents / livePriceCents) * 1000) / 10
+    : null;
+
   /* ── Image upload ── */
   async function handleImageFile(file: File) {
+    if (!product) return;
     setImgError('');
     if (!ACCEPTED_EXT.test(file.name)) { setImgError('Use jpg, png, webp, gif, or avif'); return; }
     if (file.size > MAX_FILE_BYTES) { setImgError('Max 4 MB'); return; }
@@ -251,9 +263,6 @@ function EditPanel({
     setPanelImgFailed(false);
     setImagePreview(URL.createObjectURL(file));
     try {
-      // Legacy filename-only body: accepted by both the deployed backend and
-      // the updated one (contentType is optional there). Sending contentType
-      // first would 400 on the deployed build, so keep this call compatible.
       const presignRes = await fetch(`/api/proxy/products/${product.id}/image/presign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ filename: file.name }),
@@ -262,14 +271,11 @@ function EditPanel({
         const data = await presignRes.json().catch(() => ({} as { message?: unknown }));
         const msg =
           presignRes.status === 503
-            ? 'Image storage is not configured on the server. Set R2 env vars (backend/.env locally, hosting env vars in prod) and restart the backend.'
+            ? 'Image storage is not configured on the server. Set R2 env vars and restart backend.'
             : (typeof data.message === 'string' ? data.message : 'Presign failed');
         throw new Error(msg);
       }
       const { uploadUrl, key, contentType } = await presignRes.json();
-
-      // Backend signs the PUT with the mime derived from the extension, so
-      // send that same value here — not file.type — to avoid signature mismatch.
       const putType = contentType || mimeFromFilename(file.name);
       const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': putType }, body: file });
       if (!putRes.ok) throw new Error('Upload to storage failed');
@@ -282,9 +288,8 @@ function EditPanel({
         const data = await patchRes.json().catch(() => ({} as { message?: string }));
         throw new Error(typeof data.message === 'string' ? data.message : 'Failed to save image');
       }
-      // Server truth (includes the resolved imageUrl) updates the grid at once.
       const updated = (await patchRes.json()) as Product;
-      onSaved(updated);
+      onSaved(updated, false);
       setImagePreview(null);
       setPanelImgFailed(false);
       router.refresh();
@@ -298,6 +303,7 @@ function EditPanel({
   }
 
   async function handleRemoveImage(): Promise<boolean> {
+    if (!product) return false;
     setImgError(''); setRemoving(true);
     try {
       const res = await fetch(`/api/proxy/products/${product.id}/image`, { method: 'DELETE', credentials: 'include' });
@@ -307,7 +313,7 @@ function EditPanel({
       }
       setImagePreview(null);
       setPanelImgFailed(false);
-      onSaved({ ...product, imageKey: null, imageUrl: null });
+      onSaved({ ...product, imageKey: null, imageUrl: null }, false);
       router.refresh();
       return true;
     } catch (e) {
@@ -316,8 +322,10 @@ function EditPanel({
     } finally { setRemoving(false); }
   }
 
-  /* ── Save product details (optimistic: grid updates instantly, rolls back on error) ── */
+  /* ── Save product details ── */
   async function handleSave() {
+    if (!name.trim()) { setError('Product name is required'); return; }
+    if (!sku.trim()) { setError('SKU is required'); return; }
     const price = parseFloat(priceCents);
     if (isNaN(price) || price < 0) { setError('Invalid selling price'); return; }
     const costNum = costCents.trim() ? parseFloat(costCents) : null;
@@ -327,66 +335,104 @@ function EditPanel({
 
     const priceCentsVal = Math.round(price * 100);
     const costCentsVal = costNum === null ? null : Math.round(costNum * 100);
-    const profitCentsVal = costCentsVal === null ? null : priceCentsVal - costCentsVal;
-    const marginPctVal =
-      costCentsVal === null || priceCentsVal <= 0 || profitCentsVal === null
-        ? null
-        : Math.round((profitCentsVal / priceCentsVal) * 1000) / 10;
     const taxCat = taxCategories.find((t) => t.id === taxCategoryId) ?? null;
 
-    const previous = product;
-    const optimistic: Product = {
-      ...product,
-      name: name.trim(),
-      description: description.trim() || null,
-      sku: sku.trim(),
-      barcode: barcode.trim() || null,
-      priceCents: priceCentsVal,
-      costCents: costCentsVal,
-      profitCents: profitCentsVal,
-      marginPct: marginPctVal,
-      categoryId: categoryId || null,
-      taxCategory: taxCat ? { id: taxCat.id, name: taxCat.name, rateBp: taxCat.rateBp } : null,
-      unitType,
-      isWeighed,
-      reorderPoint: reorderNum,
-      active,
-    };
-
     setSaving(true); setError(''); setSuccess(false);
-    onSaved(optimistic);
+
     try {
-      const body: Record<string, unknown> = {
-        name: optimistic.name,
-        description: optimistic.description,
-        sku: optimistic.sku,
-        barcode: optimistic.barcode,
-        priceCents: optimistic.priceCents,
-        costCents: optimistic.costCents,
-        categoryId: optimistic.categoryId,
-        taxCategoryId: taxCategoryId || null,
-        unitType: optimistic.unitType,
-        isWeighed: optimistic.isWeighed,
-        reorderPoint: optimistic.reorderPoint,
-        active: optimistic.active,
-      };
+      if (isCreate) {
+        const body = {
+          name: name.trim(),
+          sku: sku.trim(),
+          description: description.trim() || undefined,
+          barcode: barcode.trim() || undefined,
+          priceCents: priceCentsVal,
+          costCents: costCentsVal ?? undefined,
+          categoryId: categoryId || undefined,
+          taxCategoryId: taxCategoryId || undefined,
+          unitType,
+          isWeighed,
+          reorderPoint: reorderNum ?? undefined,
+          active,
+        };
 
-      const res = await fetch(`/api/proxy/products/${product.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({} as { message?: unknown }));
-        throw new Error(typeof data.message === 'string' ? data.message : 'Save failed');
+        const res = await fetch('/api/proxy/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({} as { message?: unknown }));
+          throw new Error(typeof data.message === 'string' ? data.message : 'Failed to create product');
+        }
+
+        const created = (await res.json()) as Product;
+        onSaved(created, true);
+        setSuccess(true);
+        router.refresh();
+        setTimeout(() => { onClose(); }, 650);
+      } else {
+        const profitCentsVal = costCentsVal === null ? null : priceCentsVal - costCentsVal;
+        const marginPctVal =
+          costCentsVal === null || priceCentsVal <= 0 || profitCentsVal === null
+            ? null
+            : Math.round((profitCentsVal / priceCentsVal) * 1000) / 10;
+
+        const previous = product!;
+        const optimistic: Product = {
+          ...product!,
+          name: name.trim(),
+          description: description.trim() || null,
+          sku: sku.trim(),
+          barcode: barcode.trim() || null,
+          priceCents: priceCentsVal,
+          costCents: costCentsVal,
+          profitCents: profitCentsVal,
+          marginPct: marginPctVal,
+          categoryId: categoryId || null,
+          taxCategory: taxCat ? { id: taxCat.id, name: taxCat.name, rateBp: taxCat.rateBp } : null,
+          unitType,
+          isWeighed,
+          reorderPoint: reorderNum,
+          active,
+        };
+
+        onSaved(optimistic, false);
+        const body: Record<string, unknown> = {
+          name: optimistic.name,
+          description: optimistic.description,
+          sku: optimistic.sku,
+          barcode: optimistic.barcode,
+          priceCents: optimistic.priceCents,
+          costCents: optimistic.costCents,
+          categoryId: optimistic.categoryId,
+          taxCategoryId: taxCategoryId || null,
+          unitType: optimistic.unitType,
+          isWeighed: optimistic.isWeighed,
+          reorderPoint: optimistic.reorderPoint,
+          active: optimistic.active,
+        };
+
+        const res = await fetch(`/api/proxy/products/${product!.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({} as { message?: unknown }));
+          throw new Error(typeof data.message === 'string' ? data.message : 'Save failed');
+        }
+
+        setSuccess(true);
+        router.refresh();
+        setTimeout(() => { onClose(); }, 650);
       }
-
-      setSuccess(true);
-      router.refresh();
-      // Let the confirmation register, then return to the updated grid.
-      setTimeout(() => { onClose(); }, 650);
     } catch (e) {
-      onSaved(previous);
-      setError(e instanceof Error ? e.message : 'Save failed — your edits are preserved, try again');
+      if (!isCreate && product) {
+        onSaved(product, false);
+      }
+      setError(e instanceof Error ? e.message : 'Save failed');
     } finally { setSaving(false); }
   }
 
@@ -420,12 +466,14 @@ function EditPanel({
         }}>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-primary)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 3 }}>
-              Edit Product
+              {isCreate ? 'Create Product' : 'Edit Product'}
             </p>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
-              {product.name}
+              {isCreate ? 'New Product' : product.name}
             </h2>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{product.sku}</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              {isCreate ? 'Add a new product to inventory catalog' : product.sku}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -451,55 +499,57 @@ function EditPanel({
         {/* Body */}
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24, flex: 1 }}>
 
-          {/* ── Image ── */}
-          <div>
-            <label style={sectionLabel}>Product Image</label>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-              {/* Thumbnail */}
-              <div style={{
-                width: 96, height: 96, borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-subtle)',
-                overflow: 'hidden', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {showPanelImg ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={displayUrl as string} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setPanelImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                ) : (
-                  <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--border-strong)' }}>{initials(product.name)}</span>
-                )}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading || removing}
-                  style={{ ...secondaryBtn, minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <path d="m17 8-5-5-5 5" />
-                    <path d="M12 3v12" />
-                  </svg>
-                  <span>{uploading ? 'Uploading…' : displayUrl ? 'Replace Image' : 'Upload Image'}</span>
-                </button>
-                {displayUrl && (
-                  <button type="button" onClick={() => { setImgError(''); setConfirmRemove(true); }} disabled={uploading || removing} style={{ ...dangerBtn, minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {/* ── Image (only for edit mode) ── */}
+          {!isCreate && (
+            <div>
+              <label style={sectionLabel}>Product Image</label>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                {/* Thumbnail */}
+                <div style={{
+                  width: 96, height: 96, borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-subtle)',
+                  overflow: 'hidden', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {showPanelImg ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={displayUrl as string} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setPanelImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--border-strong)' }}>{initials(product.name)}</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading || removing}
+                    style={{ ...secondaryBtn, minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M3 6h18" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <path d="m17 8-5-5-5 5" />
+                      <path d="M12 3v12" />
                     </svg>
-                    <span>{removing ? 'Removing…' : 'Remove Image'}</span>
+                    <span>{uploading ? 'Uploading…' : displayUrl ? 'Replace Image' : 'Upload Image'}</span>
                   </button>
-                )}
-                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>JPG, PNG, WebP · Max 4 MB</p>
-                {imgError && <p role="alert" style={{ fontSize: 11, color: 'var(--accent-rose)' }}>{imgError}</p>}
+                  {displayUrl && (
+                    <button type="button" onClick={() => { setImgError(''); setConfirmRemove(true); }} disabled={uploading || removing} style={{ ...dangerBtn, minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                      <span>{removing ? 'Removing…' : 'Remove Image'}</span>
+                    </button>
+                  )}
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>JPG, PNG, WebP · Max 4 MB</p>
+                  {imgError && <p role="alert" style={{ fontSize: 11, color: 'var(--accent-rose)' }}>{imgError}</p>}
+                </div>
               </div>
+              <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
             </div>
-            <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
-          </div>
+          )}
 
           {/* ── Basic Info ── */}
           <fieldset style={fieldset}>
@@ -507,11 +557,11 @@ function EditPanel({
             <div className="form-grid-2col">
               <div style={formGroup}>
                 <label style={inputLabel}>Product Name *</label>
-                <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Jogoo Maize Flour 2kg" />
+                <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Jogoo Maize Flour 2kg" required />
               </div>
               <div style={formGroup}>
                 <label style={inputLabel}>SKU *</label>
-                <input style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={sku} onChange={e => setSku(e.target.value)} placeholder="e.g. UNG-001" />
+                <input style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={sku} onChange={e => setSku(e.target.value)} placeholder="e.g. UNG-001" required />
               </div>
             </div>
             <div style={formGroup}>
@@ -529,7 +579,7 @@ function EditPanel({
             </div>
           </fieldset>
 
-          {/* ── Pricing ── */}
+          {/* ── Pricing & Tax ── */}
           <fieldset style={fieldset}>
             <legend style={legendStyle}>Pricing &amp; Tax</legend>
             <div className="form-grid-2col">
@@ -539,7 +589,7 @@ function EditPanel({
                   <span style={prefixStyle}>KES</span>
                   <input style={{ ...inputStyle, paddingLeft: 48, fontVariantNumeric: 'tabular-nums' }}
                     type="number" min={0} step={0.01}
-                    value={priceCents} onChange={e => setPriceCents(e.target.value)} placeholder="0.00" />
+                    value={priceCents} onChange={e => setPriceCents(e.target.value)} placeholder="0.00" required />
                 </div>
               </div>
               <div style={formGroup}>
@@ -552,16 +602,19 @@ function EditPanel({
                 </div>
               </div>
             </div>
-            {product.profitCents !== null && (
-              <div style={{ padding: '10px 14px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 20 }}>
-                <span>Profit: <strong style={{ color: product.profitCents >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{formatKes(product.profitCents)}</strong></span>
-                {product.marginPct !== null && <span>Margin: <strong style={{ color: product.profitCents >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{product.marginPct}%</strong></span>}
+
+            {/* Real-time Profit & Margin calculation banner */}
+            {liveProfitCents !== null && (
+              <div style={{ padding: '10px 14px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 20, alignItems: 'center' }}>
+                <span>Profit: <strong style={{ color: liveProfitCents >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{formatKes(liveProfitCents)}</strong></span>
+                {liveMarginPct !== null && <span>Margin: <strong style={{ color: liveProfitCents >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{liveMarginPct}%</strong></span>}
               </div>
             )}
+
             <div style={formGroup}>
               <label style={inputLabel}>Tax Category</label>
               <Select
-                id={`tax-category-${product.id}`}
+                id={`tax-category-${product?.id ?? 'new'}`}
                 value={taxCategoryId}
                 onChange={setTaxCategoryId}
                 options={[
@@ -579,7 +632,7 @@ function EditPanel({
               <div style={formGroup}>
                 <label style={inputLabel}>Category</label>
                 <Select
-                  id={`category-${product.id}`}
+                  id={`category-${product?.id ?? 'new'}`}
                   value={categoryId}
                   onChange={setCategoryId}
                   options={[
@@ -591,7 +644,7 @@ function EditPanel({
               <div style={formGroup}>
                 <label style={inputLabel}>Unit Type</label>
                 <Select
-                  id={`unit-type-${product.id}`}
+                  id={`unit-type-${product?.id ?? 'new'}`}
                   value={unitType}
                   onChange={setUnitType}
                   options={['each', 'kg', 'g', 'litre', 'ml', 'dozen', 'pack', 'box'].map(u => ({ value: u, label: u }))}
@@ -633,7 +686,7 @@ function EditPanel({
           )}
           {success && (
             <div aria-live="polite" style={{ padding: '10px 14px', background: 'var(--accent-emerald-bg)', border: '1px solid rgba(95,173,124,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-emerald)', fontSize: 13 }}>
-              Product saved — closing…
+              {isCreate ? 'Product created successfully — closing…' : 'Product saved — closing…'}
             </div>
           )}
         </div>
@@ -652,7 +705,7 @@ function EditPanel({
             fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
             border: 'none', transition: 'background 0.15s',
           }}>
-            {saving ? 'Saving…' : 'Save Changes'}
+            {saving ? (isCreate ? 'Creating…' : 'Saving…') : (isCreate ? 'Create Product' : 'Save Changes')}
           </button>
         </div>
       </div>
@@ -728,6 +781,7 @@ const checkboxLabel: React.CSSProperties = {
 /* ─── Main Grid Export ─────────────────────────────────────────────────────── */
 export function ProductsGrid({ products, categories, taxCategories }: Props) {
   const [editing, setEditing] = useState<Product | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
   // Local mirror of the server list so saves apply optimistically and the
@@ -739,11 +793,15 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
     setItems(products);
   }, [products]);
 
-  function handleSaved(updated: Product) {
-    setItems((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    setHighlightId(updated.id);
+  function handleSaved(saved: Product, isNew?: boolean) {
+    if (isNew) {
+      setItems((prev) => [saved, ...prev.filter((p) => p.id !== saved.id)]);
+    } else {
+      setItems((prev) => prev.map((p) => (p.id === saved.id ? saved : p)));
+    }
+    setHighlightId(saved.id);
     setTimeout(() => {
-      setHighlightId((cur) => (cur === updated.id ? null : cur));
+      setHighlightId((cur) => (cur === saved.id ? null : cur));
     }, 1800);
   }
 
@@ -757,6 +815,30 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
     <>
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
+        <button
+          onClick={() => setIsCreating(true)}
+          style={{
+            padding: '9px 18px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'var(--accent-primary)',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: '0 2px 6px rgba(217,119,87,0.25)',
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>New Product</span>
+        </button>
+
         <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: 340 }}>
           <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none', display: 'inline-flex', lineHeight: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -814,13 +896,24 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
         </div>
       )}
 
-      {/* Edit slide-over — reads the live item so optimistic updates show inside the panel too */}
+      {/* Edit slide-over */}
       {editing && (
         <EditPanel
           product={items.find((p) => p.id === editing.id) ?? editing}
           categories={categories}
           taxCategories={taxCategories}
           onClose={() => setEditing(null)}
+          onSaved={handleSaved}
+        />
+      )}
+
+      {/* Create slide-over */}
+      {isCreating && (
+        <EditPanel
+          product={null}
+          categories={categories}
+          taxCategories={taxCategories}
+          onClose={() => setIsCreating(false)}
           onSaved={handleSaved}
         />
       )}

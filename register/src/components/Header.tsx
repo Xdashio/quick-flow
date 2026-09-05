@@ -1,6 +1,6 @@
 import React from "react";
 import type { SyncStatus } from "../lib/types";
-import { IconSync, IconSun, IconMoon } from "./icons";
+import { IconSync, IconSun, IconMoon, IconLock } from "./icons";
 
 interface HeaderProps {
   syncStatus: SyncStatus | null;
@@ -8,6 +8,8 @@ interface HeaderProps {
   onToggleDrawer: () => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  authenticatedUser?: { name: string; role: string } | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,6 +18,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDrawer,
   theme,
   onToggleTheme,
+  authenticatedUser,
+  onLogout,
 }) => {
   const isSyncing = syncStatus?.status === "syncing";
   const isOffline = syncStatus?.status === "offline" || !syncStatus?.isOnline;
@@ -221,6 +225,59 @@ export const Header: React.FC<HeaderProps> = ({
         >
           {theme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
         </button>
+
+        {/* Cashier Badge & Lock Till Button */}
+        {authenticatedUser && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 4 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                backgroundColor: "var(--bg-surface-elevated)",
+                border: "1px solid var(--border-subtle)",
+                padding: "6px 12px",
+                borderRadius: "var(--radius-pill)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  backgroundColor: "var(--accent-emerald)",
+                  display: "inline-block",
+                }}
+              />
+              <span>{authenticatedUser.name}</span>
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Lock Till / Sign Out"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: "var(--radius-pill)",
+                  backgroundColor: "var(--accent-rose-bg)",
+                  border: "1px solid rgba(224, 109, 115, 0.3)",
+                  color: "var(--accent-rose)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <IconLock size={12} />
+                <span>Lock</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <style>{`

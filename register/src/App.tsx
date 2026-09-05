@@ -7,12 +7,26 @@ import { ProductCatalog } from "./components/ProductCatalog";
 import { Cart } from "./components/Cart";
 import { SyncDrawer } from "./components/SyncDrawer";
 import { TenderModal } from "./components/TenderModal";
+import { Login } from "./components/Login";
 import { IconCart, IconArrowRight } from "./components/icons";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
 
 export default function App() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     return (localStorage.getItem("pos-theme") as "dark" | "light") || "dark";
+  });
+  const [authenticatedUser, setAuthenticatedUser] = useState<{
+    id: string;
+    name: string;
+    role: string;
+    token: string;
+  } | null>(() => {
+    try {
+      const stored = localStorage.getItem("pos-user");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
   });
   const [products, setProducts] = useState<CachedProduct[]>([]);
   const [categories, setCategories] = useState<CachedCategory[]>([]);
@@ -180,6 +194,24 @@ export default function App() {
     posApi.getSyncStatus().then(setSyncStatus).catch(() => {});
   };
 
+  const handleLogout = () => {
+    setAuthenticatedUser(null);
+    localStorage.removeItem("pos-user");
+  };
+
+  if (!authenticatedUser) {
+    return (
+      <Login
+        onSuccess={(user) => {
+          setAuthenticatedUser(user);
+          localStorage.setItem("pos-user", JSON.stringify(user));
+        }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
   return (
     <div className="pos-shell">
       {/* Top Header Bar */}
@@ -189,6 +221,8 @@ export default function App() {
         onToggleDrawer={() => setIsDrawerOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
+        authenticatedUser={authenticatedUser}
+        onLogout={handleLogout}
       />
 
       {/* Last sale banner (receipt + drawer kick verification, offline badge) */}

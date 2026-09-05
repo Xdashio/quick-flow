@@ -257,7 +257,7 @@ export const SyncDrawer: React.FC<SyncDrawerProps> = ({
                   cursor: "pointer",
                 }}
               >
-                {saveState === "saving" ? "Saving..." : saveState === "saved" ? "Saved ✓" : "Save"}
+                {saveState === "saving" ? "Saving..." : saveState === "saved" ? "Saved" : "Save"}
               </button>
               <button
                 onClick={handleResetBackendUrl}

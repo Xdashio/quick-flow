@@ -110,3 +110,18 @@ export const IconArrowRight: React.FC<IconProps> = ({ size = 14, ...props }) => 
     <polyline points="12 5 19 12 12 19" />
   </svg>
 );
+
+export const IconLock: React.FC<IconProps> = ({ size = 14, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+export const IconBackspace: React.FC<IconProps> = ({ size = 16, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />
+    <line x1="18" y1="9" x2="12" y2="15" />
+    <line x1="12" y1="9" x2="18" y2="15" />
+  </svg>
+);

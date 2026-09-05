@@ -1,4 +1,5 @@
 const nextConfig = {
+  output: 'standalone',
   transpilePackages: ["@pos/shared"],
   typescript: {
     ignoreBuildErrors: true,
