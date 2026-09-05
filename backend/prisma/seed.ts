@@ -139,7 +139,7 @@ async function main() {
       reorderPoint: 25,
       unitType: 'each',
       isWeighed: false,
-      imageKey: 'https://images.unsplash.com/photo-1622484217112-9cbb8aa40ad6?w=600&auto=format&fit=crop&q=80',
+      imageKey: 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?w=600&auto=format&fit=crop&q=80',
     },
     {
       sku: 'OIL-RIN-1L',
@@ -253,7 +253,7 @@ async function main() {
       reorderPoint: 50,
       unitType: 'each',
       isWeighed: false,
-      imageKey: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=600&auto=format&fit=crop&q=80',
+      imageKey: 'https://images.unsplash.com/photo-1523362628745-0c100150b504?w=600&auto=format&fit=crop&q=80',
     },
 
     // ── Dairy & Bakery ──
@@ -385,7 +385,7 @@ async function main() {
       reorderPoint: 40,
       unitType: 'each',
       isWeighed: false,
-      imageKey: 'https://images.unsplash.com/photo-1607006314144-88db01869e54?w=600&auto=format&fit=crop&q=80',
+      imageKey: 'https://images.unsplash.com/photo-1600857544200-b2f666a9a2ec?w=600&auto=format&fit=crop&q=80',
     },
     {
       sku: 'HSD-COL-140G',
@@ -399,7 +399,7 @@ async function main() {
       reorderPoint: 25,
       unitType: 'each',
       isWeighed: false,
-      imageKey: 'https://images.unsplash.com/photo-1559591937-e1069634e29b?w=600&auto=format&fit=crop&q=80',
+      imageKey: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=600&auto=format&fit=crop&q=80',
     },
 
     // ── Fresh Produce (Weighed / Each) ──
