@@ -1,4 +1,5 @@
 import type { CartItem, CartTotals } from "./types";
+import { getApiUrl } from "./api";
 
 // Checkout service — builds CashSale payload with integer cents math, calls backend via window.posApi or direct fetch
 // Handles offline queuing: Electron main handles queuing, so this is just a thin wrapper
@@ -106,7 +107,7 @@ export async function completeCashSale(
   }
 
   // Browser dev fallback: direct fetch to backend checkout
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const apiUrl = getApiUrl();
   const res = await fetch(`${apiUrl}/checkout/cash`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -161,7 +162,7 @@ export async function initiateMpesaStkSale(
     createdAt: new Date().toISOString(),
   };
 
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const apiUrl = getApiUrl();
   const res = await fetch(`${apiUrl}/checkout/mpesa-stk`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -218,7 +219,7 @@ export async function completeMpesaTillSale(
     createdAt: new Date().toISOString(),
   };
 
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const apiUrl = getApiUrl();
   const res = await fetch(`${apiUrl}/checkout/mpesa-till`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -249,7 +250,7 @@ export async function pollPaymentStatus(
   onStatus?: (status: string) => void,
   timeoutMs: number = 60000
 ): Promise<{ status: 'captured' | 'failed' | 'pending'; payment: any; receipt?: any }> {
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const apiUrl = getApiUrl();
   const start = Date.now();
 
   while (Date.now() - start < timeoutMs) {
@@ -293,7 +294,7 @@ export async function openDrawer(args: { reason: string; registerId?: string; us
   if (typeof window !== "undefined" && (window as any).posApi?.openDrawer) {
     return (window as any).posApi.openDrawer(args);
   }
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const apiUrl = getApiUrl();
   const res = await fetch(`${apiUrl}/checkout/drawer/open`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -31,6 +31,12 @@ declare global {
 
 const isElectron = typeof window !== "undefined" && Boolean(window.posApi);
 
+export function getApiUrl(): string {
+  const envUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.POS_API_URL;
+  if (envUrl) return envUrl.replace(/\/+$/, "");
+  return "https://api.crestcyber.co.ke/api";
+}
+
 export const posApi = {
   isElectron,
 
@@ -117,7 +123,7 @@ export const posApi = {
   },
 
   async login(username: string, password: string): Promise<{ accessToken: string; user: { id: string; name: string; role: string } }> {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -132,7 +138,7 @@ export const posApi = {
 
   async completeCashSale(payload: any): Promise<any> {
     if (window.posApi?.completeCashSale) return window.posApi.completeCashSale(payload);
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/checkout/cash`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -143,7 +149,7 @@ export const posApi = {
   },
 
   async initiateMpesaStkSale(payload: any): Promise<any> {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/checkout/mpesa-stk`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -162,7 +168,7 @@ export const posApi = {
   },
 
   async completeMpesaTillSale(payload: any): Promise<any> {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/checkout/mpesa-till`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -181,14 +187,14 @@ export const posApi = {
   },
 
   async getPaymentStatus(paymentId: string): Promise<any> {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/payments/status/${paymentId}`);
     if (!res.ok) throw new Error(`Failed to get payment status ${res.status}`);
     return res.json();
   },
 
   async completeMpesaStkSale(paymentId: string): Promise<any> {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/checkout/mpesa-complete/${paymentId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -199,7 +205,7 @@ export const posApi = {
 
   async openDrawer(args: { reason: string; amountCents?: number; registerId?: string; userId?: string }): Promise<any> {
     if (window.posApi?.openDrawer) return window.posApi.openDrawer(args);
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+    const apiUrl = getApiUrl();
     const res = await fetch(`${apiUrl}/checkout/drawer/open`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -217,7 +223,7 @@ export const posApi = {
   async checkConnectivity(): Promise<boolean> {
     if (window.posApi?.checkConnectivity) return window.posApi.checkConnectivity();
     try {
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000/api";
+      const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl.replace(/\/api\/?$/, "")}/health`, { signal: AbortSignal.timeout(3000) });
       return res.ok;
     } catch {
