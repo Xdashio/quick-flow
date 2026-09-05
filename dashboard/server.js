@@ -1,20 +1,21 @@
-// Startup file for cPanel's Node.js Selector (Phusion Passenger).
-//
-// Passenger launches a plain .js file directly — it doesn't run
-// package.json scripts. This just execs the equivalent of `next start`
-// on whatever port Passenger assigns via process.env.PORT.
-//
-// Not used by `npm run dev` / `npm run start` locally or on other hosts
-// (Railway, etc.) — those already call `next start` directly. This file
-// only matters for the HostPinnacle/cPanel deployment path.
-// See docs/HOSTPINNACLE_DEPLOY.md.
+import { createServer } from 'node:http';
+import { parse } from 'node:url';
+import next from 'next';
 
-const { spawn } = require('child_process');
+const port = parseInt(process.env.PORT || '3000', 10);
+const dev = process.env.NODE_ENV === 'development';
+const app = next({ dev, hostname: '0.0.0.0', port });
+const handle = app.getRequestHandler();
 
-const port = process.env.PORT || 3000;
-const child = spawn('node_modules/.bin/next', ['start', '-p', port], {
-  stdio: 'inherit',
-  env: process.env,
+app.prepare().then(() => {
+  createServer((req, res) => {
+    const parsedUrl = parse(req.url, true);
+    handle(req, res, parsedUrl);
+  }).listen(port, (err) => {
+    if (err) throw err;
+    console.log(`> Dashboard ready on port ${port}`);
+  });
+}).catch((err) => {
+  console.error('Error starting server:', err);
+  process.exit(1);
 });
-
-child.on('exit', (code) => process.exit(code ?? 0));
