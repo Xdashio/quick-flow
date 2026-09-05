@@ -1,5 +1,5 @@
 import type { CartItem, CartTotals } from "./types";
-import { getApiUrl } from "./api";
+import { apiFetch } from "./api";
 
 // Checkout service — builds CashSale payload with integer cents math, calls backend via window.posApi or direct fetch
 // Handles offline queuing: Electron main handles queuing, so this is just a thin wrapper
@@ -106,17 +106,13 @@ export async function completeCashSale(
     };
   }
 
-  // Browser dev fallback: direct fetch to backend checkout
-  const apiUrl = getApiUrl();
-  const res = await fetch(`${apiUrl}/checkout/cash`, {
+  // Browser dev fallback: direct fetch to backend checkout (with failover)
+  const res = await apiFetch("/checkout/cash", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    errorPrefix: "Checkout failed",
   });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Checkout failed ${res.status}: ${body}`);
-  }
   const data = await res.json();
   return {
     success: true,
@@ -162,22 +158,12 @@ export async function initiateMpesaStkSale(
     createdAt: new Date().toISOString(),
   };
 
-  const apiUrl = getApiUrl();
-  const res = await fetch(`${apiUrl}/checkout/mpesa-stk`, {
+  const res = await apiFetch("/checkout/mpesa-stk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    errorPrefix: "M-Pesa STK failed",
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    let message = body;
-    try {
-      const parsed = JSON.parse(body);
-      message = parsed.message || body;
-    } catch {}
-    throw new Error(`M-Pesa STK failed: ${message}`);
-  }
 
   const data = await res.json();
   return {
@@ -219,22 +205,12 @@ export async function completeMpesaTillSale(
     createdAt: new Date().toISOString(),
   };
 
-  const apiUrl = getApiUrl();
-  const res = await fetch(`${apiUrl}/checkout/mpesa-till`, {
+  const res = await apiFetch("/checkout/mpesa-till", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    errorPrefix: "M-Pesa Till failed",
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    let message = body;
-    try {
-      const parsed = JSON.parse(body);
-      message = parsed.message || body;
-    } catch {}
-    throw new Error(`M-Pesa Till failed: ${message}`);
-  }
 
   const data = await res.json();
   return {
@@ -250,12 +226,11 @@ export async function pollPaymentStatus(
   onStatus?: (status: string) => void,
   timeoutMs: number = 60000
 ): Promise<{ status: 'captured' | 'failed' | 'pending'; payment: any; receipt?: any }> {
-  const apiUrl = getApiUrl();
   const start = Date.now();
 
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(`${apiUrl}/payments/status/${paymentId}`);
+      const res = await apiFetch(`/payments/status/${paymentId}`, { timeoutMs: 5000 });
       if (res.ok) {
         const payment = await res.json();
         if (onStatus) onStatus(payment.status);
@@ -264,7 +239,7 @@ export async function pollPaymentStatus(
           // Fetch final receipt
           let receipt: any = null;
           try {
-            const compRes = await fetch(`${apiUrl}/checkout/mpesa-complete/${payment.id}`, {
+            const compRes = await apiFetch(`/checkout/mpesa-complete/${payment.id}`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
             });
@@ -294,12 +269,11 @@ export async function openDrawer(args: { reason: string; registerId?: string; us
   if (typeof window !== "undefined" && (window as any).posApi?.openDrawer) {
     return (window as any).posApi.openDrawer(args);
   }
-  const apiUrl = getApiUrl();
-  const res = await fetch(`${apiUrl}/checkout/drawer/open`, {
+  const res = await apiFetch("/checkout/drawer/open", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(args),
+    errorPrefix: "Drawer open failed",
   });
-  if (!res.ok) throw new Error(`Drawer open failed ${res.status}`);
   return res.json();
 }

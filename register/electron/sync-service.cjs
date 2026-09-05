@@ -67,21 +67,18 @@ class SyncService {
   // Real network probe against any candidate backend (used for reconnection detection)
   async checkConnectivity() {
     for (const url of this.apiUrls) {
-      try {
-        const res = await fetch(`${url}/health`, {
-          method: "GET",
-          signal: AbortSignal.timeout(3000),
-        });
-        if (res.ok) return true;
-      } catch {}
-
-      try {
-        const res2 = await fetch(`${url}/tax-categories`, {
-          method: "GET",
-          signal: AbortSignal.timeout(3000),
-        });
-        if (res2.ok) return true;
-      } catch {}
+      for (const probePath of ["/health", "/tax-categories"]) {
+        try {
+          const res = await fetch(`${url}${probePath}`, {
+            method: "GET",
+            signal: AbortSignal.timeout(3000),
+          });
+          // Require an actual JSON API response. An HTTP-200 HTML interstitial
+          // (hosting platform "app is sleeping" page) must not count as online.
+          const contentType = res.headers.get("content-type") || "";
+          if (res.ok && contentType.includes("application/json")) return true;
+        } catch {}
+      }
     }
     return false;
   }
@@ -174,6 +171,18 @@ class SyncService {
           const err = new Error(`GET ${path} failed with status ${res.status}`);
           err.statusCode = res.status;
           throw err;
+        }
+        // A real backend answers with JSON. Hosting platforms sometimes serve
+        // an HTML interstitial ("One moment, please...") with HTTP 200 when
+        // the app is down or sleeping — without this check, res.json() throws
+        // the cryptic `Unexpected token '<' ... is not valid JSON` error.
+        // Deliberately no statusCode: sync() treats it as unreachable and
+        // moves on to the next backend candidate.
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          throw new Error(
+            `GET ${path} returned ${contentType || "unknown content-type"} instead of JSON (backend down/sleeping or wrong URL)`,
+          );
         }
         return res.json();
       };
