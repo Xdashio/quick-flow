@@ -44,7 +44,8 @@ export function ProductImageUpload({ productId, productName, imageUrl }: Props) 
     setPreview(localPreview);
 
     try {
-      // 1. Ask the backend for a pre-signed R2 upload URL
+      // 1. Ask the backend for a pre-signed R2 upload URL (filename-only body
+      // works on both the deployed backend and the updated one).
       const presignRes = await fetch(
         `/api/proxy/products/${productId}/image/presign`,
         {
@@ -56,16 +57,29 @@ export function ProductImageUpload({ productId, productName, imageUrl }: Props) 
       );
 
       if (!presignRes.ok) {
-        const data = await presignRes.json().catch(() => ({}));
-        throw new Error(data.message ?? 'Failed to get upload URL');
+        const data = await presignRes.json().catch(() => ({} as { message?: unknown }));
+        if (presignRes.status === 503) {
+          throw new Error('Image storage is not configured on the server. Set R2 env vars (backend/.env locally, hosting env vars in prod) and restart the backend.');
+        }
+        const msg = typeof data.message === 'string' ? data.message : 'Failed to get upload URL';
+        throw new Error(msg);
       }
 
-      const { uploadUrl, key } = await presignRes.json();
+      const { uploadUrl, key, contentType } = await presignRes.json();
 
-      // 2. PUT the file directly to R2
+      // 2. PUT the file directly to R2 — Content-Type must match the signed header exactly
+      const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+        '.avif': 'image/avif',
+      };
       const putRes = await fetch(uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        headers: { 'Content-Type': contentType || mimeMap[ext] || file.type || 'application/octet-stream' },
         body: file,
       });
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Select } from './Select';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface Product {
@@ -42,6 +43,32 @@ function initials(name: string) {
   return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
 }
 
+/**
+ * Seeded products store full external URLs (Unsplash) in imageKey while
+ * R2 uploads store object keys resolved to imageUrl by the backend.
+ * Prefer imageUrl, fall back to imageKey when it is already a URL so seeded
+ * images render even if the backend version predates imageUrl.
+ */
+function resolveImageUrl(p: { imageUrl: string | null; imageKey: string | null }): string | null {
+  if (p.imageUrl) return p.imageUrl;
+  if (p.imageKey && /^https?:\/\//i.test(p.imageKey)) return p.imageKey;
+  return null;
+}
+
+/** Must stay in sync with backend R2Service.mimeFromExt — the presigned PUT is signed with this value. */
+function mimeFromFilename(filename: string): string {
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  const map: Record<string, string> = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.avif': 'image/avif',
+  };
+  return map[ext] ?? 'application/octet-stream';
+}
+
 const ACCEPTED_EXT = /\.(jpg|jpeg|png|webp|gif|avif)$/i;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
@@ -49,6 +76,9 @@ const MAX_FILE_BYTES = 4 * 1024 * 1024;
 function ProductCard({ product, onEdit }: { product: Product; onEdit: () => void }) {
   const margin = product.marginPct;
   const marginColor = margin === null ? 'var(--text-muted)' : margin >= 20 ? 'var(--accent-emerald)' : margin >= 0 ? 'var(--accent-amber)' : 'var(--accent-rose)';
+  const cardImageUrl = resolveImageUrl(product);
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImg = Boolean(cardImageUrl) && !imgFailed;
 
   return (
     <div
@@ -91,13 +121,15 @@ function ProductCard({ product, onEdit }: { product: Product; onEdit: () => void
         overflow: 'hidden', flexShrink: 0,
         borderBottom: '1px solid var(--border-subtle)',
       }}>
-        {product.imageUrl ? (
+        {showImg ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={product.imageUrl}
+            src={cardImageUrl as string}
             alt={product.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={() => setImgFailed(true)}
           />
         ) : (
           <span style={{ fontSize: 32, fontWeight: 800, color: 'var(--border-strong)', letterSpacing: '-0.02em' }}>
@@ -198,7 +230,10 @@ function EditPanel({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const displayUrl = imagePreview ?? product.imageUrl;
+  const baseImageUrl = resolveImageUrl(product);
+  const displayUrl = imagePreview ?? baseImageUrl;
+  const [panelImgFailed, setPanelImgFailed] = useState(false);
+  const showPanelImg = Boolean(displayUrl) && !panelImgFailed;
 
   /* ── Image upload ── */
   async function handleImageFile(file: File) {
@@ -207,16 +242,30 @@ function EditPanel({
     if (file.size > MAX_FILE_BYTES) { setImgError('Max 4 MB'); return; }
 
     setUploading(true);
+    setPanelImgFailed(false);
     setImagePreview(URL.createObjectURL(file));
     try {
+      // Legacy filename-only body: accepted by both the deployed backend and
+      // the updated one (contentType is optional there). Sending contentType
+      // first would 400 on the deployed build, so keep this call compatible.
       const presignRes = await fetch(`/api/proxy/products/${product.id}/image/presign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ filename: file.name }),
       });
-      if (!presignRes.ok) throw new Error((await presignRes.json().catch(() => ({}))).message ?? 'Presign failed');
-      const { uploadUrl, key } = await presignRes.json();
+      if (!presignRes.ok) {
+        const data = await presignRes.json().catch(() => ({} as { message?: unknown }));
+        const msg =
+          presignRes.status === 503
+            ? 'Image storage is not configured on the server. Set R2 env vars (backend/.env locally, hosting env vars in prod) and restart the backend.'
+            : (typeof data.message === 'string' ? data.message : 'Presign failed');
+        throw new Error(msg);
+      }
+      const { uploadUrl, key, contentType } = await presignRes.json();
 
-      const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+      // Backend signs the PUT with the mime derived from the extension, so
+      // send that same value here — not file.type — to avoid signature mismatch.
+      const putType = contentType || mimeFromFilename(file.name);
+      const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': putType }, body: file });
       if (!putRes.ok) throw new Error('Upload to storage failed');
 
       await fetch(`/api/proxy/products/${product.id}`, {
@@ -305,28 +354,37 @@ function EditPanel({
         {/* Header */}
         <div style={{
           padding: '20px 24px 18px', borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
           position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10,
         }}>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-primary)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 3 }}>
               Edit Product
             </p>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
               {product.name}
             </h2>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{product.sku}</p>
           </div>
           <button
             onClick={onClose}
+            type="button"
+            aria-label="Close panel"
+            title="Close"
             style={{
               width: 32, height: 32, borderRadius: 'var(--radius-pill)',
               background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-subtle)',
-              color: 'var(--text-muted)', fontSize: 16, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
+              color: 'var(--text-muted)', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, lineHeight: 0, padding: 0,
             }}
-          >×</button>
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-strong)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-subtle)'; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Body */}
@@ -343,25 +401,35 @@ function EditPanel({
                 overflow: 'hidden', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                {displayUrl ? (
+                {showPanelImg ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={displayUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={displayUrl as string} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setPanelImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 ) : (
                   <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--border-strong)' }}>{initials(product.name)}</span>
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading || removing}
-                  style={secondaryBtn}
+                  style={{ ...secondaryBtn, minHeight: 34, display: 'inline-flex', alignItems: 'center', gap: 8 }}
                 >
-                  {uploading ? '⏳ Uploading…' : displayUrl ? '🔄 Replace Image' : '📸 Upload Image'}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <path d="m17 8-5-5-5 5" />
+                    <path d="M12 3v12" />
+                  </svg>
+                  <span>{uploading ? 'Uploading…' : displayUrl ? 'Replace Image' : 'Upload Image'}</span>
                 </button>
                 {displayUrl && (
-                  <button type="button" onClick={handleRemoveImage} disabled={uploading || removing} style={dangerBtn}>
-                    {removing ? 'Removing…' : '🗑 Remove Image'}
+                  <button type="button" onClick={handleRemoveImage} disabled={uploading || removing} style={{ ...dangerBtn, minHeight: 34, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                    <span>{removing ? 'Removing…' : 'Remove Image'}</span>
                   </button>
                 )}
                 <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>JPG, PNG, WebP · Max 4 MB</p>
@@ -431,12 +499,15 @@ function EditPanel({
             )}
             <div style={formGroup}>
               <label style={inputLabel}>Tax Category</label>
-              <select style={selectStyle} value={taxCategoryId} onChange={e => setTaxCategoryId(e.target.value)}>
-                <option value="">— None —</option>
-                {taxCategories.map(tc => (
-                  <option key={tc.id} value={tc.id}>{tc.name} ({(tc.rateBp / 100).toFixed(0)}%)</option>
-                ))}
-              </select>
+              <Select
+                id={`tax-category-${product.id}`}
+                value={taxCategoryId}
+                onChange={setTaxCategoryId}
+                options={[
+                  { value: '', label: 'None' },
+                  ...taxCategories.map(tc => ({ value: tc.id, label: `${tc.name} (${(tc.rateBp / 100).toFixed(0)}%)` })),
+                ]}
+              />
             </div>
           </fieldset>
 
@@ -446,16 +517,24 @@ function EditPanel({
             <div style={formGrid}>
               <div style={formGroup}>
                 <label style={inputLabel}>Category</label>
-                <select style={selectStyle} value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-                  <option value="">— Uncategorized —</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <Select
+                  id={`category-${product.id}`}
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  options={[
+                    { value: '', label: 'Uncategorized' },
+                    ...categories.map(c => ({ value: c.id, label: c.name })),
+                  ]}
+                />
               </div>
               <div style={formGroup}>
                 <label style={inputLabel}>Unit Type</label>
-                <select style={selectStyle} value={unitType} onChange={e => setUnitType(e.target.value)}>
-                  {['each', 'kg', 'g', 'litre', 'ml', 'dozen', 'pack', 'box'].map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
+                <Select
+                  id={`unit-type-${product.id}`}
+                  value={unitType}
+                  onChange={setUnitType}
+                  options={['each', 'kg', 'g', 'litre', 'ml', 'dozen', 'pack', 'box'].map(u => ({ value: u, label: u }))}
+                />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 24 }}>
@@ -488,12 +567,12 @@ function EditPanel({
           {/* ── Error / Success ── */}
           {error && (
             <div style={{ padding: '10px 14px', background: 'var(--accent-rose-bg)', border: '1px solid rgba(224,109,115,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-rose)', fontSize: 13 }}>
-              ⚠ {error}
+              {error}
             </div>
           )}
           {success && (
             <div style={{ padding: '10px 14px', background: 'var(--accent-emerald-bg)', border: '1px solid rgba(95,173,124,0.3)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-emerald)', fontSize: 13 }}>
-              ✓ Product saved successfully
+              Product saved successfully
             </div>
           )}
         </div>
@@ -549,12 +628,6 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-sans)',
   transition: 'border-color 0.15s',
 };
-const selectStyle: React.CSSProperties = {
-  ...inputStyle, cursor: 'pointer', appearance: 'none',
-  backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23828076' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center',
-  paddingRight: 36,
-};
 const inputWithPrefix: React.CSSProperties = {
   position: 'relative',
 };
@@ -594,7 +667,12 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
         <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: 340 }}>
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none', display: 'inline-flex', lineHeight: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
           <input
             type="search"
             placeholder="Search by name, SKU or barcode…"

@@ -31,7 +31,7 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['each', 'kg', 'lb', 'oz'])
+  @IsIn(['each', 'kg', 'g', 'lb', 'oz', 'litre', 'ml', 'dozen', 'pack', 'box'])
   unitType?: string;
 
   @IsOptional()

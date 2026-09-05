@@ -16,12 +16,20 @@
  * Pre-signed upload URLs allow the browser to PUT directly to R2 — the backend
  * never proxies the file bytes.
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
+
+export const ALLOWED_IMAGE_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+]);
 
 @Injectable()
 export class R2Service {
@@ -29,22 +37,54 @@ export class R2Service {
   private readonly s3: S3Client;
   private readonly bucket: string;
   private readonly publicUrl: string;
+  private readonly accountId: string;
+  private readonly accessKeyId: string;
+  private readonly secretAccessKey: string;
 
   constructor(private config: ConfigService) {
-    const accountId = this.config.get<string>('R2_ACCOUNT_ID', '');
-    this.bucket = this.config.get<string>('R2_BUCKET', 'pos-product-images');
-    this.publicUrl = this.config
-      .get<string>('R2_PUBLIC_URL', '')
-      .replace(/\/$/, ''); // strip trailing slash
+    this.accountId = (this.config.get<string>('R2_ACCOUNT_ID', '') ?? '').trim();
+    this.accessKeyId = (this.config.get<string>('R2_ACCESS_KEY_ID', '') ?? '').trim();
+    this.secretAccessKey = (this.config.get<string>('R2_SECRET_ACCESS_KEY', '') ?? '').trim();
+    this.bucket = (this.config.get<string>('R2_BUCKET', 'pos-product-images') ?? '').trim() || 'pos-product-images';
+    this.publicUrl = (this.config.get<string>('R2_PUBLIC_URL', '') ?? '').replace(/\/$/, ''); // strip trailing slash
 
+    if (!this.isConfigured()) {
+      // Don't crash boot — local dev without R2 should still serve the API and
+      // seeded (external-URL) images. Presign requests will fail fast with 503.
+      this.logger.warn(
+        'R2 storage is not fully configured (R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET / R2_PUBLIC_URL). ' +
+          'Image uploads will return 503 until these are set. Seeded external-URL images still resolve via publicUrlFor().',
+      );
+    }
+
+    // WHEN_REQUIRED is critical: the default (WHEN_SUPPORTED) makes the SDK
+    // add x-amz-checksum-crc32 to the signature, which the browser PUT would
+    // then have to echo back exactly or R2 rejects with SignatureDoesNotMatch.
+    // Disabling automatic checksums keeps the presigned URL to just the
+    // headers the browser actually sends (Content-Type).
     this.s3 = new S3Client({
       region: 'auto',
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      endpoint: `https://${this.accountId || 'missing-account-id'}.r2.cloudflarestorage.com`,
       credentials: {
-        accessKeyId: this.config.get<string>('R2_ACCESS_KEY_ID', ''),
-        secretAccessKey: this.config.get<string>('R2_SECRET_ACCESS_KEY', ''),
+        accessKeyId: this.accessKeyId || 'missing',
+        secretAccessKey: this.secretAccessKey || 'missing',
       },
-    });
+      requestChecksumCalculation: 'WHEN_REQUIRED' as never,
+    } as never);
+  }
+
+  /** True when all credentials needed for presigned uploads are present. */
+  isConfigured(): boolean {
+    return Boolean(this.accountId && this.accessKeyId && this.secretAccessKey && this.bucket);
+  }
+
+  assertConfigured(): void {
+    if (!this.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'Image storage is not configured on the server (missing R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY). ' +
+          'Set them in backend/.env (local) and in the Railway/hosting env vars (production), then restart the backend.',
+      );
+    }
   }
 
   /**
@@ -55,22 +95,32 @@ export class R2Service {
   async createPresignedUploadUrl(
     productId: string,
     originalFilename: string,
-  ): Promise<{ uploadUrl: string; key: string }> {
+    contentType?: string,
+  ): Promise<{ uploadUrl: string; key: string; contentType: string }> {
+    this.assertConfigured();
+
     const ext = path.extname(originalFilename).toLowerCase() || '.jpg';
     const key = `products/${productId}/${randomUUID()}${ext}`;
+
+    // Use the browser's Content-Type when it is a valid image mime so the
+    // signed header exactly matches what the PUT will send. Fall back to the
+    // extension mapping otherwise — mismatched Content-Type is the most common
+    // cause of SignatureDoesNotMatch after the endpoint itself is fixed.
+    const resolvedType =
+      contentType && ALLOWED_IMAGE_MIMES.has(contentType) ? contentType : this.mimeFromExt(ext);
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ContentType: this.mimeFromExt(ext),
+      ContentType: resolvedType,
       // 4 MB max — product thumbnails don't need to be larger
       ContentLength: undefined,
     });
 
     const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 300 });
 
-    this.logger.debug(`Pre-signed upload URL generated for key=${key}`);
-    return { uploadUrl, key };
+    this.logger.debug(`Pre-signed upload URL generated for key=${key} contentType=${resolvedType}`);
+    return { uploadUrl, key, contentType: resolvedType };
   }
 
   /**
@@ -78,6 +128,14 @@ export class R2Service {
    * the product is deleted, so orphaned objects don't accumulate.
    */
   async deleteObject(key: string): Promise<void> {
+    if (!key) return;
+    // Seeded products store full external URLs (e.g. Unsplash) in imageKey —
+    // there is no R2 object to delete for those.
+    if (key.startsWith('http://') || key.startsWith('https://')) return;
+    if (!this.isConfigured()) {
+      this.logger.warn(`Skipping R2 delete for key=${key}: storage not configured`);
+      return;
+    }
     try {
       await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
       this.logger.debug(`Deleted R2 object key=${key}`);
@@ -96,10 +154,12 @@ export class R2Service {
    */
   publicUrlFor(key: string | null | undefined): string | null {
     if (!key) return null;
+    const trimmed = key.trim();
+    if (!trimmed) return null;
     // Already a full URL — return as-is (handles seeded Unsplash URLs etc.)
-    if (key.startsWith('http://') || key.startsWith('https://')) return key;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
     if (!this.publicUrl) return null;
-    return `${this.publicUrl}/${key}`;
+    return `${this.publicUrl}/${trimmed.replace(/^\/+/, '')}`;
   }
 
   private mimeFromExt(ext: string): string {

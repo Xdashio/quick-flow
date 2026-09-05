@@ -47,11 +47,18 @@ export class ImagesController {
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException(`Product ${productId} not found`);
 
-    const { uploadUrl, key } = await this.r2.createPresignedUploadUrl(productId, dto.filename);
+    // NOTE: only uploadUrl/key/imageUrl/contentType leave the server —
+    // R2_ACCOUNT_ID and API secrets are never serialized to the client.
+    const { uploadUrl, key, contentType } = await this.r2.createPresignedUploadUrl(
+      productId,
+      dto.filename,
+      dto.contentType,
+    );
 
     return {
       uploadUrl,
       key,
+      contentType,
       // Convenience: the URL the image will be accessible at once uploaded
       imageUrl: this.r2.publicUrlFor(key),
     };
