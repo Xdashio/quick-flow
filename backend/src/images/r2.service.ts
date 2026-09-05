@@ -90,9 +90,15 @@ export class R2Service {
   /**
    * Construct the public CDN URL for an image key.
    * e.g. key="products/abc/img.jpg" → "https://images.example.com/products/abc/img.jpg"
+   *
+   * If the key is already a full URL (e.g. from Unsplash / external CDN seeding),
+   * it is returned as-is without prepending the R2 public URL.
    */
   publicUrlFor(key: string | null | undefined): string | null {
-    if (!key || !this.publicUrl) return null;
+    if (!key) return null;
+    // Already a full URL — return as-is (handles seeded Unsplash URLs etc.)
+    if (key.startsWith('http://') || key.startsWith('https://')) return key;
+    if (!this.publicUrl) return null;
     return `${this.publicUrl}/${key}`;
   }
 
