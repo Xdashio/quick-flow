@@ -6,6 +6,12 @@ import { posApi } from "../lib/api";
 
 // ── Product image with local cache + placeholder ────────────────────────────
 
+// Packshot tile height — tall enough that product photos render large.
+// Images use `contain` on a white tile (supplier packshots already ship on
+// white padding, so it blends) so the full product is always visible instead
+// of a cropped slice.
+const IMAGE_TILE_HEIGHT = 150;
+
 interface ProductImageProps {
   product: CachedProduct;
 }
@@ -41,13 +47,13 @@ const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
       <div
         style={{
           width: "100%",
-          height: 80,
+          height: IMAGE_TILE_HEIGHT,
           borderRadius: "var(--radius-sm)",
           backgroundColor: "var(--bg-surface-subtle)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 22,
+          fontSize: 28,
           fontWeight: 800,
           color: "var(--text-muted)",
           letterSpacing: "-0.02em",
@@ -69,8 +75,11 @@ const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
       loading="lazy"
       style={{
         width: "100%",
-        height: 80,
-        objectFit: "cover",
+        height: IMAGE_TILE_HEIGHT,
+        objectFit: "contain",
+        backgroundColor: "#ffffff",
+        padding: 8,
+        boxSizing: "border-box",
         borderRadius: "var(--radius-sm)",
         marginBottom: 10,
         border: "1px solid var(--border-subtle)",
