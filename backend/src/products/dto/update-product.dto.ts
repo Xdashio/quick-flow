@@ -43,6 +43,15 @@ export class UpdateProductDto {
   @Min(0)
   priceCents?: number;
 
+  /**
+   * Buying/cost price in cents — pass a number to set/change it, null to
+   * clear it, or omit to leave unchanged.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  costCents?: number | null;
+
   @IsOptional()
   @IsUUID()
   taxCategoryId?: string;

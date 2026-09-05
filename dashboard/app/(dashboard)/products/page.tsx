@@ -3,6 +3,7 @@ import { apiFetch, formatKes } from '../../../lib/api';
 import { ProductImageUpload } from '../../../components/ProductImageUpload';
 import { ProductCategoryPicker } from '../../../components/ProductCategoryPicker';
 import { ReorderPointInput } from '../../../components/ReorderPointInput';
+import { CostPriceInput } from '../../../components/CostPriceInput';
 
 export const metadata: Metadata = { title: 'Products' };
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,9 @@ interface Product {
   name: string;
   unitType: string;
   priceCents: number;
+  costCents: number | null;
+  profitCents: number | null;
+  marginPct: number | null;
   active: boolean;
   imageKey: string | null;
   imageUrl: string | null;
@@ -60,6 +64,8 @@ export default async function ProductsPage() {
                     <th>Name</th>
                     <th>Unit</th>
                     <th className="text-right">Price</th>
+                    <th className="text-right">Buying Price</th>
+                    <th className="text-right">Profit</th>
                     <th>Category</th>
                     <th>Reorder at</th>
                     <th>Status</th>
@@ -79,6 +85,19 @@ export default async function ProductsPage() {
                       <td className="font-bold">{p.name}</td>
                       <td className="td-muted">{p.unitType}</td>
                       <td className="text-right mono">{formatKes(p.priceCents)}</td>
+                      <td className="text-right">
+                        <CostPriceInput productId={p.id} costCents={p.costCents} />
+                      </td>
+                      <td className="text-right mono">
+                        {p.profitCents === null ? (
+                          <span className="td-muted">—</span>
+                        ) : (
+                          <span style={{ color: p.profitCents >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                            {formatKes(p.profitCents)}
+                            {p.marginPct !== null ? ` (${p.marginPct}%)` : ''}
+                          </span>
+                        )}
+                      </td>
                       <td>
                         <ProductCategoryPicker
                           productId={p.id}

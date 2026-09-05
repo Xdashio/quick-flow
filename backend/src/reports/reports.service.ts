@@ -41,6 +41,16 @@ export interface PaymentBreakdownRow {
   count: number;
 }
 
+export interface ProfitSummary {
+  date: string;
+  revenueCents: number;
+  costCents: number;
+  profitCents: number;
+  marginPct: number | null;
+  /** Line items sold with no costCents set on the product yet — profit for these is excluded from costCents/profitCents above. */
+  itemsMissingCost: number;
+}
+
 export interface PendingMpesaRow {
   id: string;
   transactionId: string;
@@ -95,6 +105,50 @@ export class ReportsService {
       taxCents: Number(r.tax_cents ?? 0),
       voidedCents: Number(r.voided_cents ?? 0),
       refundedCents: Number(r.refunded_cents ?? 0),
+    };
+  }
+
+  /**
+   * Profit summary for a single day: revenue (ex-tax) minus cost of goods
+   * sold, for completed sales. Cost is the unitCostCents frozen on each
+   * line item at sale time (so later edits to a product's cost don't
+   * rewrite historical profit) — items sold before a cost was ever set on
+   * the product are counted in revenue but excluded from cost/profit, and
+   * flagged via itemsMissingCost so the number isn't silently wrong.
+   */
+  async getProfitSummary(date?: string): Promise<ProfitSummary> {
+    const { from, to } = nairobiDayBounds(date);
+
+    const rows = (await this.prisma.$queryRawUnsafe<
+      Array<{
+        revenue_cents: string | null;
+        cost_cents: string | null;
+        items_missing_cost: bigint;
+      }>
+    >(
+      `SELECT
+        ROUND(SUM(li.unit_price_cents * li.quantity - li.discount_cents))::bigint AS revenue_cents,
+        ROUND(SUM(COALESCE(li.unit_cost_cents, 0) * li.quantity) FILTER (WHERE li.unit_cost_cents IS NOT NULL))::bigint AS cost_cents,
+        COUNT(*) FILTER (WHERE li.unit_cost_cents IS NULL) AS items_missing_cost
+      FROM transaction_line_items li
+      JOIN transactions t ON t.id = li.transaction_id
+      WHERE t.status = 'COMPLETED' AND t.created_at >= $1 AND t.created_at < $2`,
+      from,
+      to,
+    )) as any[];
+
+    const r = rows[0];
+    const revenueCents = Number(r?.revenue_cents ?? 0);
+    const costCents = Number(r?.cost_cents ?? 0);
+    const profitCents = revenueCents - costCents;
+
+    return {
+      date: from.toISOString().slice(0, 10),
+      revenueCents,
+      costCents,
+      profitCents,
+      marginPct: revenueCents > 0 ? Math.round((profitCents / revenueCents) * 1000) / 10 : null,
+      itemsMissingCost: Number(r?.items_missing_cost ?? 0),
     };
   }
 

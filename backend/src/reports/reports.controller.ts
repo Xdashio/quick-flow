@@ -18,6 +18,17 @@ export class ReportsController {
   }
 
   /**
+   * GET /api/reports/profit?date=YYYY-MM-DD
+   * Revenue minus cost of goods sold for completed sales that day, using
+   * each line item's frozen unitCostCents. Flags itemsMissingCost when
+   * some sold items never had a cost price set on the product.
+   */
+  @Get('profit')
+  profit(@Query('date') date?: string) {
+    return this.service.getProfitSummary(date);
+  }
+
+  /**
    * GET /api/reports/payments-breakdown?date=YYYY-MM-DD
    * Payment method + status breakdown: cash / mpesa_stk / mpesa_till.
    */

@@ -47,12 +47,16 @@ export class CheckoutService {
     }
 
     // Verify products exist and line totals are consistent (optional but anti-mock)
+    // Also snapshot each product's current cost price, frozen onto the line
+    // item so later cost edits don't rewrite historical profit.
+    const costByProductId = new Map<string, number | null>();
     for (const li of dto.lineItems) {
       const prod = await this.prisma.product.findUnique({ where: { id: li.productId } });
       if (!prod) throw new NotFoundException(`Product ${li.productId} not found`);
       if (!Number.isInteger(li.unitPriceCents) || !Number.isInteger(li.lineTotalCents)) {
         throw new BadRequestException('Line item cents must be integers');
       }
+      costByProductId.set(li.productId, prod.costCents ?? null);
     }
 
     const txId = dto.id ?? randomUUID();
@@ -81,6 +85,7 @@ export class CheckoutService {
                 productId: li.productId,
                 quantity: li.quantity,
                 unitPriceCents: li.unitPriceCents,
+                unitCostCents: costByProductId.get(li.productId) ?? null,
                 taxRateBp: li.taxRateBp,
                 discountCents: li.discountCents ?? 0,
                 lineTotalCents: li.lineTotalCents,

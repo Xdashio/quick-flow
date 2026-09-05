@@ -21,6 +21,15 @@ interface PaymentBreakdownRow {
   count: number;
 }
 
+interface ProfitSummary {
+  date: string;
+  revenueCents: number;
+  costCents: number;
+  profitCents: number;
+  marginPct: number | null;
+  itemsMissingCost: number;
+}
+
 function methodLabel(method: string) {
   const map: Record<string, string> = {
     cash: 'Cash',
@@ -54,9 +63,10 @@ function statusBadge(status: string) {
 async function OverviewContent() {
   const today = nairobiToday();
 
-  const [summary, breakdown] = await Promise.all([
+  const [summary, breakdown, profit] = await Promise.all([
     apiFetch<SalesSummary>(`/reports/summary?date=${today}`).catch(() => null),
     apiFetch<PaymentBreakdownRow[]>(`/reports/payments-breakdown?date=${today}`).catch(() => []),
+    apiFetch<ProfitSummary>(`/reports/profit?date=${today}`).catch(() => null),
   ]);
 
   const captured = breakdown.filter((r) => r.status === 'captured');
@@ -122,6 +132,21 @@ async function OverviewContent() {
               {summary ? formatKes(summary.voidedCents + summary.refundedCents) : '—'}
             </div>
             <div className="kpi-sub">Excluded from gross</div>
+          </div>
+
+          <div className="kpi-card" style={{ '--kpi-accent': '#059669' } as React.CSSProperties}>
+            <div className="kpi-label">Profit (Today)</div>
+            <div className="kpi-value" id="kpi-profit">
+              {profit ? formatKes(profit.profitCents) : '—'}
+            </div>
+            <div className="kpi-sub">
+              {profit?.marginPct !== null && profit?.marginPct !== undefined
+                ? `${profit.marginPct}% margin`
+                : 'No cost prices set yet'}
+              {profit && profit.itemsMissingCost > 0
+                ? ` · ${profit.itemsMissingCost} item${profit.itemsMissingCost !== 1 ? 's' : ''} missing cost`
+                : ''}
+            </div>
           </div>
         </div>
 

@@ -40,6 +40,12 @@ export class CreateProductDto {
   @Min(0)
   priceCents!: number;
 
+  /** Buying/cost price in cents. Omit if cost isn't tracked yet. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  costCents?: number;
+
   @IsOptional()
   @IsUUID()
   taxCategoryId?: string;

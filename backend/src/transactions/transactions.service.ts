@@ -127,6 +127,7 @@ export class TransactionsService {
             productId: li.productId,
             quantity: li.quantity,
             unitPriceCents,
+            unitCostCents: prod.costCents ?? null,
             taxRateBp,
             discountCents,
             lineTotalCents: lineTotal,
@@ -170,6 +171,7 @@ export class TransactionsService {
                   productId: li.productId,
                   quantity: li.quantity,
                   unitPriceCents: li.unitPriceCents,
+                  unitCostCents: li.unitCostCents,
                   taxRateBp: li.taxRateBp,
                   discountCents: li.discountCents,
                   lineTotalCents: li.lineTotalCents,
@@ -232,13 +234,15 @@ export class TransactionsService {
 
     // If lineItems provided, replace them atomically (only allowed in non-terminal states)
     if (dto.lineItems) {
-      // Validate all products exist
+      // Validate all products exist, and snapshot current cost onto each line
+      const costByProductId = new Map<string, number | null>();
       for (const li of dto.lineItems) {
         const prod = await this.prisma.product.findUnique({
           where: { id: li.productId },
         });
         if (!prod)
           throw new NotFoundException(`Product ${li.productId} not found`);
+        costByProductId.set(li.productId, prod.costCents ?? null);
       }
 
       return this.prisma.$transaction(async (tx) => {
@@ -259,6 +263,7 @@ export class TransactionsService {
                 productId: li.productId,
                 quantity: li.quantity,
                 unitPriceCents: li.unitPriceCents,
+                unitCostCents: costByProductId.get(li.productId) ?? null,
                 taxRateBp: li.taxRateBp,
                 discountCents: li.discountCents ?? 0,
                 lineTotalCents: li.lineTotalCents,

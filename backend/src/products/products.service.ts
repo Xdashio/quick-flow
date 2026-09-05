@@ -15,11 +15,21 @@ export class ProductsService {
     private r2: R2Service,
   ) {}
 
-  /** Append a resolved imageUrl to any product row */
-  private withImageUrl<T extends { imageKey?: string | null }>(product: T) {
+  /** Append a resolved imageUrl, plus profit figures when cost is known. */
+  private withComputed<
+    T extends { imageKey?: string | null; priceCents: number; costCents?: number | null },
+  >(product: T) {
+    const hasCost = product.costCents !== null && product.costCents !== undefined;
+    const profitCents = hasCost ? product.priceCents - (product.costCents as number) : null;
+    const marginPct =
+      hasCost && product.priceCents > 0
+        ? Math.round((profitCents! / product.priceCents) * 1000) / 10
+        : null;
     return {
       ...product,
       imageUrl: this.r2.publicUrlFor(product.imageKey),
+      profitCents,
+      marginPct,
     };
   }
 
@@ -34,6 +44,7 @@ export class ProductsService {
           unitType: dto.unitType ?? 'each',
           isWeighed: dto.isWeighed ?? false,
           priceCents: dto.priceCents,
+          costCents: dto.costCents ?? null,
           taxCategoryId: dto.taxCategoryId ?? null,
           categoryId: dto.categoryId ?? null,
           active: dto.active ?? true,
@@ -42,7 +53,7 @@ export class ProductsService {
         },
         include: { taxCategory: true, category: true },
       });
-      return this.withImageUrl(product);
+      return this.withComputed(product);
     } catch (e: any) {
       if (e.code === 'P2002') {
         throw new ConflictException(`SKU already exists: ${dto.sku}`);
@@ -56,7 +67,7 @@ export class ProductsService {
       orderBy: { createdAt: 'desc' },
       include: { taxCategory: true, category: true },
     });
-    return products.map((p) => this.withImageUrl(p));
+    return products.map((p) => this.withComputed(p));
   }
 
   async findOne(id: string) {
@@ -65,7 +76,7 @@ export class ProductsService {
       include: { taxCategory: true, category: true },
     });
     if (!product) throw new NotFoundException(`Product ${id} not found`);
-    return this.withImageUrl(product);
+    return this.withComputed(product);
   }
 
   async findByBarcode(barcode: string) {
@@ -75,7 +86,7 @@ export class ProductsService {
     });
     if (!product)
       throw new NotFoundException(`Product with barcode ${barcode} not found`);
-    return this.withImageUrl(product);
+    return this.withComputed(product);
   }
 
   async update(id: string, dto: UpdateProductDto) {
@@ -101,6 +112,7 @@ export class ProductsService {
           unitType: dto.unitType,
           isWeighed: dto.isWeighed,
           priceCents: dto.priceCents,
+          costCents: dto.costCents,
           taxCategoryId: dto.taxCategoryId,
           categoryId: dto.categoryId,
           active: dto.active,
@@ -109,7 +121,7 @@ export class ProductsService {
         },
         include: { taxCategory: true, category: true },
       });
-      return this.withImageUrl(product);
+      return this.withComputed(product);
     } catch (e: any) {
       if (e.code === 'P2002') {
         throw new ConflictException(`SKU already exists: ${dto.sku}`);
@@ -136,7 +148,7 @@ export class ProductsService {
           where: { id },
           data: { active: false },
         });
-        return { deleted: false, deactivated: true, product: this.withImageUrl(product) };
+        return { deleted: false, deactivated: true, product: this.withComputed(product) };
       }
       throw e;
     }
