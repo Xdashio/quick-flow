@@ -33,6 +33,12 @@ class SyncService {
     this.isSyncing = false;
     this.isCurrentlyOnline = null;
     this.listeners = [];
+    // Tracks image URLs that returned non-retryable errors (e.g. 404).
+    // Cleared when a full new sync finds a different imageKey for the product.
+    this._imageFailureCache = new Set();
+    // Tracks which backend URLs we've already logged as unreachable so we
+    // don't spam the console on every 30-second tick.
+    this._lastUnreachableLog = new Map();
   }
 
   getDb() {
@@ -111,7 +117,12 @@ class SyncService {
             // fall through to another URL in that case.
             break;
           }
-          console.warn(`[SyncService] ${url} unreachable (${err.message}), trying next backend...`);
+          // Only log once per distinct message per URL to avoid 30-second spam.
+          const logKey = `${url}::${err.message}`;
+          if (this._lastUnreachableLog.get(url) !== logKey) {
+            this._lastUnreachableLog.set(url, logKey);
+            console.warn(`[SyncService] ${url} unreachable (${err.message}), trying next backend...`);
+          }
         }
       }
       throw lastErr || new Error("No backend URL configured");
@@ -287,15 +298,28 @@ class SyncService {
         (p) => (p.imageUrl || p.imageKey) && (p.active !== false)
       );
       if (productsWithImages.length > 0) {
-        console.log(`[SyncService] Caching images for ${productsWithImages.length} products...`);
+        let cached = 0, skipped = 0, failed = 0;
+        const failReasons = [];
         // Sequential to avoid hammering the CDN; images are small so this is fast
         for (const p of productsWithImages) {
           try {
-            await this.cacheProductImage(db, p);
+            const result = await this.cacheProductImage(db, p);
+            if (result === 'cached') cached++;
+            else skipped++; // already on disk
           } catch (imgErr) {
-            // Image caching failure is non-fatal — register still works with placeholders
-            console.warn(`[SyncService] Image cache error for product ${p.id}:`, imgErr.message);
+            failed++;
+            // Only accumulate error details; suppress per-product spam.
+            failReasons.push(`${p.id.slice(0, 8)}: ${imgErr.message}`);
           }
+        }
+        const parts = [];
+        if (cached > 0) parts.push(`${cached} downloaded`);
+        if (skipped > 0) parts.push(`${skipped} already cached`);
+        if (failed > 0) parts.push(`${failed} failed`);
+        console.log(`[SyncService] Images — ${parts.join(', ')}`);
+        // Log a single collapsed failure line only when something changed.
+        if (failed > 0 && failReasons.length > 0) {
+          console.warn(`[SyncService] Image fetch failures (non-fatal): ${failReasons.slice(0, 5).join(' | ')}${failReasons.length > 5 ? ` … +${failReasons.length - 5} more` : ''}`);
         }
       }
 
@@ -376,12 +400,16 @@ class SyncService {
     let imageUrl = product.imageUrl;
     if (!imageUrl && imageKey) {
       if (imageKey.startsWith("http://") || imageKey.startsWith("https://")) {
+        // imageKey is already a full URL — use it directly, do NOT prepend CDN base.
         imageUrl = imageKey;
       } else if (this.cdnUrl) {
         imageUrl = `${this.cdnUrl}/${imageKey}`;
       }
     }
-    if (!imageKey || !imageUrl) return;
+    if (!imageKey || !imageUrl) return 'skipped';
+
+    // Skip URLs we already know are broken (404 etc.) until imageKey changes.
+    if (this._imageFailureCache.has(imageUrl)) return 'skipped';
 
     const path = require("path");
     const fs = require("fs");
@@ -404,7 +432,7 @@ class SyncService {
     const row = db.prepare(`SELECT image_key, image_cached_at FROM products WHERE id = ?`).get(product.id);
     if (row && row.image_key === imageKey && row.image_cached_at) {
       const destPath = path.join(imagesDir, `${product.id}${ext}`);
-      if (fs.existsSync(destPath)) return; // already cached
+      if (fs.existsSync(destPath)) return 'skipped'; // already cached
     }
 
     const destPath = path.join(imagesDir, `${product.id}${ext}`);
@@ -418,7 +446,13 @@ class SyncService {
     }
 
     const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${imageUrl}`);
+    if (!res.ok) {
+      // Cache the failure so we don't hammer the CDN on every 30s tick.
+      if (res.status === 404 || res.status === 403) {
+        this._imageFailureCache.add(imageUrl);
+      }
+      throw new Error(`HTTP ${res.status} fetching ${imageUrl}`);
+    }
 
     const buffer = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(destPath, buffer);
@@ -429,7 +463,7 @@ class SyncService {
       product.id,
     );
 
-    console.log(`[SyncService] Cached image for product ${product.id} → ${destPath}`);
+    return 'cached';
   }
 
   /**
