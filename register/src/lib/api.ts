@@ -115,6 +115,7 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promis
     let res: Response;
     try {
       res = await fetch(`${base}${path}`, {
+        headers: { Accept: "application/json", ...(fetchInit.headers || {}) },
         ...fetchInit,
         signal: AbortSignal.timeout(timeoutMs),
       });
@@ -136,11 +137,6 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promis
       activeApiUrl = base;
       return res;
     }
-
-    // A JSON error body still proves this backend is alive and is the API —
-    // remember it so subsequent calls don't re-probe dead candidates first.
-    if (isJsonApi) activeApiUrl = base;
-
     const bodyText = await res.text().catch(() => "");
     let message = `HTTP ${res.status}`;
     try {
@@ -148,6 +144,20 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promis
     } catch {
       if (bodyText && !bodyText.startsWith("<")) message = bodyText.slice(0, 200);
     }
+
+    // A WAF/bot-protection layer (e.g. Imunify360 on shared hosting) can
+    // answer API clients with 403 + a JSON "access denied" page. That is the
+    // infrastructure blocking us, NOT the API refusing the request — treat
+    // it as unreachable so we fail over to the next backend.
+    if (res.status === 403 && /imunify|bot[- ]?protection/i.test(bodyText)) {
+      unreachable.push(`${base}: blocked by WAF/bot-protection (HTTP 403)`);
+      continue;
+    }
+
+    // A JSON error body still proves this backend is alive and is the API —
+    // remember it so subsequent calls don't re-probe dead candidates first.
+    if (isJsonApi) activeApiUrl = base;
+
     if (errorPrefix && !message.startsWith(errorPrefix)) {
       message = `${errorPrefix}: ${message}`;
     }

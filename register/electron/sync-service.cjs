@@ -71,6 +71,7 @@ class SyncService {
         try {
           const res = await fetch(`${url}${probePath}`, {
             method: "GET",
+            headers: { Accept: "application/json" },
             signal: AbortSignal.timeout(3000),
           });
           // Require an actual JSON API response. An HTTP-200 HTML interstitial
@@ -165,9 +166,21 @@ class SyncService {
       // Fetch all three resources, propagating HTTP status when the server responds.
       const fetchCatalog = async (path) => {
         const res = await fetch(`${apiUrl}${path}`, {
+          headers: { Accept: "application/json" },
           signal: AbortSignal.timeout(8000),
         });
         if (!res.ok) {
+          // A WAF/bot-protection layer (e.g. Imunify360 on shared hosting)
+          // answers API clients with 403 + a JSON "access denied" page. That's
+          // infrastructure blocking us, not the API refusing — treat it as
+          // unreachable (no statusCode) so sync() fails over to the next
+          // backend instead of breaking out of the candidate loop.
+          if (res.status === 403) {
+            const bodyText = await res.text().catch(() => "");
+            if (/imunify|bot[- ]?protection/i.test(bodyText)) {
+              throw new Error(`WAF/bot-protection blocked the request (HTTP 403)`);
+            }
+          }
           const err = new Error(`GET ${path} failed with status ${res.status}`);
           err.statusCode = res.status;
           throw err;
