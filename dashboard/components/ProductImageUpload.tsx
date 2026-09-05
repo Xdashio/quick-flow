@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 
 const ACCEPTED_EXT = /\.(jpg|jpeg|png|webp|gif|avif)$/i;
 
+// Mirrors the backend's expectation (see r2.service.ts): product thumbnails
+// don't need to be larger, and pre-signed PUTs can't enforce size — so the
+// dashboard checks before requesting a URL.
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
+
 interface Props {
   productId: string;
   productName: string;
@@ -26,6 +31,11 @@ export function ProductImageUpload({ productId, productName, imageUrl }: Props) 
 
     if (!ACCEPTED_EXT.test(file.name)) {
       setError('Use jpg, png, webp, gif, or avif');
+      return;
+    }
+
+    if (file.size > MAX_FILE_BYTES) {
+      setError('Image must be 4 MB or smaller');
       return;
     }
 

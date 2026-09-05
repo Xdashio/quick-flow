@@ -156,9 +156,10 @@ catalog (a few thousand thumbnails) sits comfortably inside free.
 | Image URL 403 on GET | Bucket not public / wrong `R2_PUBLIC_URL` → step 2 |
 | Register never caches | Check register sync logs; needs backend reachable + `imageUrl` non-null |
 
-## Still to build
+## Dashboard uploader (already wired)
 
-The dashboard has **no upload UI yet** — nothing under `dashboard/src` calls
-the presign flow. When you want it: file picker → `POST presign` →
-`PUT` to R2 with matching `Content-Type` (+ 4 MB client-side size check,
-which the backend intentionally does not enforce) → `PATCH` product.
+`dashboard/components/ProductImageUpload.tsx`, rendered in the products
+table (`dashboard/app/(dashboard)/products/page.tsx`), implements the full
+flow: file picker (type + 4 MB client-side checks) → `POST presign` via the
+same-origin `/api/proxy` → `PUT` to R2 with matching `Content-Type` →
+`PATCH` product → refresh. Remove goes through `DELETE /products/:id/image`.
