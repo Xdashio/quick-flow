@@ -283,8 +283,8 @@ export const TenderModal: React.FC<TenderModalProps> = ({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "rgba(20, 20, 19, 0.7)",
-        backdropFilter: "blur(8px)",
+        backgroundColor: "rgba(0, 0, 0, 0.55)",
+        backdropFilter: "blur(2px)",
         padding: 16,
       }}
       onClick={() => {
@@ -418,13 +418,13 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                     gap: 6,
                     padding: "10px 8px",
                     borderRadius: "var(--radius-md)",
-                    backgroundColor: active ? "var(--accent-terracotta)" : "var(--bg-surface-elevated)",
-                    color: active ? "#ffffff" : "var(--text-secondary)",
+                    backgroundColor: active ? "var(--accent-primary)" : "var(--bg-surface-elevated)",
+                    color: active ? "var(--accent-primary-text)" : "var(--text-secondary)",
                     border: `1px solid ${active ? "transparent" : "var(--border-subtle)"}`,
                     cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
                     fontSize: 12,
                     fontWeight: 600,
-                    boxShadow: active ? "0 4px 12px rgba(217, 119, 87, 0.3)" : "none",
+                    boxShadow: "none",
                     transition: "all 0.18s var(--ease-spring)",
                     opacity: stkPending || isProcessing ? 0.6 : 1,
                   }}
@@ -457,10 +457,10 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                           fontFamily: "var(--font-mono)",
                           fontSize: 12,
                           fontWeight: 700,
-                          backgroundColor: isActive ? "var(--accent-terracotta-bg)" : "var(--bg-surface-elevated)",
-                          border: `1px solid ${isActive ? "rgba(217, 119, 87, 0.4)" : "var(--border-subtle)"}`,
-                          borderRadius: "var(--radius-pill)",
-                          color: isActive ? "var(--accent-terracotta)" : "var(--text-secondary)",
+                          backgroundColor: isActive ? "var(--accent-primary-bg)" : "var(--bg-surface-elevated)",
+                          border: `1px solid ${isActive ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
+                          borderRadius: "var(--radius-md)",
+                          color: isActive ? "var(--accent-primary)" : "var(--text-secondary)",
                           cursor: "pointer",
                           transition: "all 0.18s var(--ease-spring)",
                         }}
@@ -481,10 +481,10 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       padding: "8px 0",
                       fontSize: 11,
                       fontWeight: 700,
-                      backgroundColor: cashTenderedCents === totals.grandTotalCents ? "var(--accent-terracotta-bg)" : "var(--bg-surface-elevated)",
-                      border: `1px solid ${cashTenderedCents === totals.grandTotalCents ? "rgba(217, 119, 87, 0.4)" : "var(--border-subtle)"}`,
-                      borderRadius: "var(--radius-pill)",
-                      color: cashTenderedCents === totals.grandTotalCents ? "var(--accent-terracotta)" : "var(--text-muted)",
+                      backgroundColor: cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary-bg)" : "var(--bg-surface-elevated)",
+                      border: `1px solid ${cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
+                      borderRadius: "var(--radius-md)",
+                      color: cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary)" : "var(--text-muted)",
                       cursor: "pointer",
                       transition: "all 0.18s var(--ease-spring)",
                       letterSpacing: "0.01em",
@@ -558,7 +558,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                         : "var(--bg-surface-elevated)",
                       color: isBelowTotal ? "var(--accent-rose)" : "var(--text-primary)",
                       border: `1px solid ${
-                        isBelowTotal ? "rgba(224, 109, 115, 0.5)" : "var(--border-subtle)"
+                        isBelowTotal ? "var(--accent-rose-border)" : "var(--border-subtle)"
                       }`,
                       borderRadius: "var(--radius-md)",
                       outline: "none",
@@ -593,7 +593,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                   backgroundColor: "var(--bg-surface-elevated)",
                   border: `1px solid ${
                     changeDueCents > 0
-                      ? "rgba(141, 161, 115, 0.3)"
+                      ? "var(--accent-sage-border)"
                       : "var(--border-subtle)"
                   }`,
                 }}
@@ -719,11 +719,11 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       width: 44,
                       height: 44,
                       borderRadius: "50%",
-                      backgroundColor: "rgba(217, 119, 87, 0.15)",
+                      backgroundColor: "var(--accent-primary-bg)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: "var(--accent-terracotta)",
+                      color: "var(--accent-primary)",
                       animation: "spin 2s linear infinite",
                     }}
                   >
@@ -742,7 +742,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                       fontSize: 12,
                       fontFamily: "var(--font-mono)",
                       fontWeight: 700,
-                      color: stkCountdown < 10 ? "var(--accent-rose)" : "var(--accent-terracotta)",
+                      color: stkCountdown < 10 ? "var(--accent-rose)" : "var(--accent-primary)",
                       padding: "4px 12px",
                       borderRadius: "var(--radius-pill)",
                       backgroundColor: "var(--bg-surface)",
@@ -780,8 +780,8 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 style={{
                   padding: "16px 20px",
                   borderRadius: "var(--radius-lg)",
-                  backgroundColor: "rgba(217, 119, 87, 0.1)",
-                  border: "1px solid rgba(217, 119, 87, 0.3)",
+                  backgroundColor: "var(--accent-primary-bg)",
+                  border: "1px solid var(--accent-primary-border)",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -789,7 +789,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                   gap: 4,
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-terracotta)" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-primary)" }}>
                   Lipa na M-Pesa Buy Goods Till
                 </span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "0.04em" }}>
@@ -840,7 +840,7 @@ export const TenderModal: React.FC<TenderModalProps> = ({
                 padding: "10px 14px",
                 borderRadius: "var(--radius-md)",
                 backgroundColor: "var(--accent-rose-bg)",
-                border: "1px solid rgba(224,109,115,0.35)",
+                border: "1px solid var(--accent-rose-border)",
                 color: "var(--accent-rose)",
                 fontSize: 12,
                 fontWeight: 600,
@@ -856,8 +856,8 @@ export const TenderModal: React.FC<TenderModalProps> = ({
               style={{
                 padding: "10px 14px",
                 borderRadius: "var(--radius-md)",
-                backgroundColor: "rgba(141,161,115,0.15)",
-                border: "1px solid rgba(141,161,115,0.35)",
+                backgroundColor: "var(--accent-sage-bg)",
+                border: "1px solid var(--accent-sage-border)",
                 color: "var(--accent-sage)",
                 fontSize: 12,
                 fontWeight: 700,

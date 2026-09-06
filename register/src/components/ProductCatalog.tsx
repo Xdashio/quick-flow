@@ -6,10 +6,6 @@ import { posApi } from "../lib/api";
 
 // ── Product image with local cache + placeholder ────────────────────────────
 
-// Packshot tile height — tall enough that product photos render large.
-// Images use `contain` on a white tile (supplier packshots already ship on
-// white padding, so it blends) so the full product is always visible instead
-// of a cropped slice.
 const IMAGE_TILE_HEIGHT = 150;
 
 interface ProductImageProps {
@@ -24,7 +20,6 @@ const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
 
     let cancelled = false;
 
-    // Direct HTTP/HTTPS image URL fallback (works in dev & web immediately)
     if (product.image_key.startsWith("http://") || product.image_key.startsWith("https://")) {
       setSrc(product.image_key);
     }
@@ -40,7 +35,6 @@ const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
   }, [product.id, product.image_key, product.image_cached_at]);
 
   if (!src) {
-    // Initials placeholder — same aesthetic as empty states elsewhere in the app
     const initials = product.name
       .split(" ")
       .slice(0, 2)
@@ -96,14 +90,24 @@ const ProductImage: React.FC<ProductImageProps> = ({ product }) => {
 interface ProductCatalogProps {
   products: CachedProduct[];
   categories?: CachedCategory[];
+  /** productId -> quantity currently in the cart (non-weighed lines only) */
+  cartQuantityByProductId?: Record<string, number>;
   onAddToCart: (product: CachedProduct) => void;
   onBarcodeSubmit: (barcode: string) => Promise<boolean>;
   isLoading: boolean;
 }
 
+const TAX_FILTERS = [
+  { id: "all", label: "All types" },
+  { id: "standard", label: "Standard VAT" },
+  { id: "zero_exempt", label: "Zero / Exempt" },
+  { id: "weighed", label: "Weighed" },
+];
+
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   products,
   categories = [],
+  cartQuantityByProductId = {},
   onAddToCart,
   onBarcodeSubmit,
   isLoading,
@@ -154,12 +158,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        padding: "18px 20px",
+        padding: "16px 20px",
         overflow: "hidden",
       }}
     >
       {/* Search & Barcode Scan Bar */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 12 }}>
         <div style={{ position: "relative" }}>
           <span
             style={{
@@ -185,10 +189,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             placeholder="Scan barcode or search product name / SKU... (Enter to add)"
             style={{
               width: "100%",
-              height: 48,
+              height: "var(--touch-min)",
               padding: "0 42px 0 48px",
               fontFamily: "var(--font-sans)",
-              fontSize: 14,
+              fontSize: 15,
               backgroundColor: "var(--bg-surface)",
               color: "var(--text-primary)",
               border: "1px solid var(--border-subtle)",
@@ -199,7 +203,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             }}
             onFocus={(e) => {
               e.currentTarget.style.borderColor = "var(--border-focus)";
-              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(217, 119, 87, 0.15)";
+              e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-primary-ring)";
             }}
             onBlur={(e) => {
               e.currentTarget.style.borderColor = "var(--border-subtle)";
@@ -213,118 +217,66 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 setSearchQuery("");
                 searchInputRef.current?.focus();
               }}
+              className="pos-icon-btn"
               style={{
                 position: "absolute",
-                right: 14,
+                right: 6,
                 top: "50%",
                 transform: "translateY(-50%)",
-                background: "none",
+                width: 34,
+                height: 34,
+                minHeight: 34,
                 border: "none",
-                color: "var(--text-muted)",
-                cursor: "pointer",
-                padding: 4,
-                display: "flex",
-                alignItems: "center",
+                backgroundColor: "transparent",
               }}
+              aria-label="Clear search"
             >
               <IconClose size={15} />
             </button>
           )}
         </div>
 
-        {/* Filter Pills */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginTop: 12,
-            overflowX: "auto",
-            scrollbarWidth: "none",
-          }}
-        >
-          {[
-            { id: "all", label: `All Products (${products.length})` },
-            { id: "standard", label: "Standard VAT (16%)" },
-            { id: "zero_exempt", label: "Zero / Exempt" },
-            { id: "weighed", label: "Weighed (Scale)" },
-          ].map((filter) => {
-            const isActive = selectedFilter === filter.id;
-            return (
-              <button
-                key={filter.id}
-                onClick={() => setSelectedFilter(filter.id)}
-                style={{
-                  padding: "6px 16px",
-                  borderRadius: "var(--radius-pill)",
-                  fontFamily: "var(--font-sans)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  backgroundColor: isActive
-                    ? "var(--accent-primary)"
-                    : "var(--bg-surface-elevated)",
-                  color: isActive
-                    ? "var(--accent-primary-text)"
-                    : "var(--text-secondary)",
-                  border: `1px solid ${
-                    isActive ? "transparent" : "var(--border-subtle)"
-                  }`,
-                  boxShadow: isActive ? "0 2px 6px rgba(217, 119, 87, 0.25)" : "none",
-                  transition: "all 0.18s var(--ease-spring)",
-                }}
-              >
-                {filter.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Category Pills */}
+        {/* Primary navigation: Categories. This is the main way a cashier
+            browses when they aren't scanning/searching, so it comes first
+            and gets the larger, higher-contrast chip treatment. */}
         {categories.length > 0 && (
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
-              marginTop: 8,
+              marginTop: 12,
               overflowX: "auto",
               scrollbarWidth: "none",
             }}
           >
-            {[{ id: "all", name: "All Categories" }, ...categories].map((cat) => {
-              const isActive = selectedCategoryId === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategoryId(cat.id)}
-                  style={{
-                    padding: "5px 14px",
-                    borderRadius: "var(--radius-pill)",
-                    fontFamily: "var(--font-sans)",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                    backgroundColor: isActive
-                      ? "var(--accent-sage-bg)"
-                      : "var(--bg-surface-elevated)",
-                    color: isActive
-                      ? "var(--accent-sage)"
-                      : "var(--text-secondary)",
-                    border: `1px solid ${
-                      isActive ? "rgba(141, 161, 115, 0.35)" : "var(--border-subtle)"
-                    }`,
-                    transition: "all 0.18s var(--ease-spring)",
-                  }}
-                >
-                  {cat.name}
-                </button>
-              );
-            })}
+            {[{ id: "all", name: `All Items (${products.length})` }, ...categories].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategoryId(cat.id)}
+                className={`pos-category-chip ${selectedCategoryId === cat.id ? "active" : ""}`}
+              >
+                {cat.name}
+              </button>
+            ))}
           </div>
         )}
+
+        {/* Secondary: tax/type filter — a compact segmented control so it
+            doesn't compete visually with category navigation above. */}
+        <div style={{ display: "flex", marginTop: 10, overflowX: "auto", scrollbarWidth: "none" }}>
+          <div className="pos-segmented">
+            {TAX_FILTERS.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setSelectedFilter(filter.id)}
+                className={`pos-segmented-btn ${selectedFilter === filter.id ? "active" : ""}`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Catalog Grid Area */}
@@ -358,7 +310,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               }}
             />
             <span style={{ fontSize: 13, fontFamily: "var(--font-sans)" }}>
-              Querying local SQLite cache...
+              Loading catalog...
             </span>
           </div>
         ) : filteredProducts.length === 0 ? (
@@ -392,14 +344,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <IconSearch size={20} />
             </div>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-              {products.length === 0
-                ? "No products in local SQLite cache"
-                : "No matching products found"}
+              {products.length === 0 ? "No products yet" : "No matching products"}
             </h3>
             <p style={{ fontSize: 12.5, color: "var(--text-muted)", maxWidth: 360, lineHeight: 1.5 }}>
               {products.length === 0
-                ? "The register queries exclusively against the local SQLite database populated via sync. If the backend has zero products, zero will be shown."
-                : `No catalog items matched "${searchQuery}". Verify barcode or SKU.`}
+                ? "This till hasn't synced any catalog items yet. Try Sync Now, or check your connection."
+                : `Nothing matched "${searchQuery}". Check the spelling, barcode, or try a different category.`}
             </p>
           </div>
         ) : (
@@ -407,20 +357,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className="pos-catalog-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
-              gap: 12,
+              gridTemplateColumns: "repeat(auto-fill, minmax(var(--card-min-width), 1fr))",
+              gap: "var(--catalog-gap)",
+              backgroundColor: "var(--border-subtle)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "var(--radius-md)",
+              overflow: "hidden",
             }}
           >
             {filteredProducts.map((p) => {
               const taxRate = p.tax_category_rate_bp ?? 0;
               const isStandardTax = taxRate >= 1600;
+              const qtyInCart = cartQuantityByProductId[p.id] ?? 0;
 
               return (
                 <div
                   key={p.id}
                   onClick={() => onAddToCart(p)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onAddToCart(p);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Add ${p.name}, ${formatCurrency(p.price_cents)}`}
                   className="pos-product-card-shell"
                 >
+                  {qtyInCart > 0 && (
+                    <span className="pos-card-qty-flag" aria-hidden="true">
+                      {qtyInCart}
+                    </span>
+                  )}
                   <div className="pos-product-card-inner">
                     {/* Top Row: Tax Tag & Scale indicator */}
                     <div
@@ -447,8 +416,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             : "var(--accent-sage)",
                           border: `1px solid ${
                             isStandardTax
-                              ? "rgba(125, 165, 206, 0.25)"
-                              : "rgba(141, 161, 115, 0.25)"
+                              ? "var(--accent-mineral-border)"
+                              : "var(--accent-sage-border)"
                           }`,
                         }}
                       >
@@ -475,17 +444,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       )}
                     </div>
 
-                    {/* Middle: Image, Name, SKU, Barcode */}
+                    {/* Middle: Image, Name */}
                     <div style={{ marginBottom: 12, flex: 1 }}>
                       <ProductImage product={p} />
                       <h4
                         style={{
-                          fontSize: 13,
-                          fontWeight: 600,
+                          fontSize: 13.5,
+                          fontWeight: 700,
                           lineHeight: 1.35,
-                          marginBottom: 6,
+                          marginBottom: 4,
                           letterSpacing: "-0.01em",
-                          /* Clamp to 2 lines so tall cards stay consistent */
                           display: "-webkit-box",
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: "vertical" as const,
@@ -494,41 +462,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       >
                         {p.name}
                       </h4>
-                      {/* SKU row */}
+                      {/* SKU shown small/muted — secondary to the name, still
+                          available for a cashier double-checking an item */}
                       <div
                         style={{
                           fontFamily: "var(--font-mono)",
                           fontSize: 10,
                           fontWeight: 500,
-                          color: "var(--text-secondary)",
+                          color: "var(--text-muted)",
                           letterSpacing: "0.01em",
-                          marginBottom: p.barcode ? 2 : 0,
                         }}
                       >
                         {p.sku}
                       </div>
-                      {/* Barcode row — muted, ellipsis for long codes */}
-                      {p.barcode && (
-                        <div
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 9.5,
-                            fontWeight: 400,
-                            color: "var(--text-muted)",
-                            letterSpacing: "0.02em",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            maxWidth: "100%",
-                          }}
-                        >
-                          {p.barcode}
-                        </div>
-                      )}
                     </div>
 
-
-                    {/* Bottom: Price & Quick Action Pill */}
+                    {/* Bottom: Price & Quick Action */}
                     <div
                       style={{
                         display: "flex",
@@ -542,8 +491,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <div
                           style={{
                             fontFamily: "var(--font-mono)",
-                            fontWeight: 700,
-                            fontSize: 15,
+                            fontWeight: 800,
+                            fontSize: 16,
                             letterSpacing: "-0.02em",
                           }}
                         >
@@ -561,22 +510,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           e.stopPropagation();
                           onAddToCart(p);
                         }}
+                        aria-label={`Add ${p.name} to cart`}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: 4,
-                          padding: "5px 12px",
+                          padding: "0 14px",
+                          height: 36,
+                          minHeight: 36,
                           borderRadius: "var(--radius-pill)",
                           backgroundColor: "var(--bg-surface-subtle)",
                           border: "1px solid var(--border-subtle)",
                           color: "var(--text-primary)",
-                          fontSize: 11.5,
-                          fontWeight: 600,
+                          fontSize: 12,
+                          fontWeight: 700,
                           cursor: "pointer",
                           transition: "all 0.15s ease",
                         }}
                       >
-                        <IconPlus size={11} />
+                        <IconPlus size={12} />
                         Add
                       </button>
                     </div>

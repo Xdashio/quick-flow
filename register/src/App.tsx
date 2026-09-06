@@ -6,15 +6,13 @@ import { Header } from "./components/Header";
 import { ProductCatalog } from "./components/ProductCatalog";
 import { Cart } from "./components/Cart";
 import { SyncDrawer } from "./components/SyncDrawer";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { TenderModal } from "./components/TenderModal";
 import { Login } from "./components/Login";
-import { IconCart, IconArrowRight } from "./components/icons";
+import { IconCart, IconArrowRight, IconCheck } from "./components/icons";
 import { useBarcodeScanner } from "./hooks/useBarcodeScanner";
 
 export default function App() {
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    return (localStorage.getItem("pos-theme") as "dark" | "light") || "dark";
-  });
   const [authenticatedUser, setAuthenticatedUser] = useState<{
     id: string;
     name: string;
@@ -33,20 +31,11 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [lastSale, setLastSale] = useState<any>(null);
-
-  // Sync theme attribute on document root
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("pos-theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  };
 
   // Load products from local SQLite cache
   const loadProducts = useCallback(async () => {
@@ -134,7 +123,7 @@ export default function App() {
   const handleBarcodeSubmit = useCallback(async (code: string): Promise<boolean> => {
     try {
       const isWeightEmbedded = code.startsWith("20") && code.length === 13;
-      
+
       let lookupCode = code;
       let dynamicPriceCents: number | null = null;
 
@@ -186,8 +175,20 @@ export default function App() {
 
   const totals = calculateCartTotals(cartItems);
 
+  // Quantity-in-cart per product, so the catalog can flag cards already
+  // added — a quick-glance cue that avoids double-scanning at busy tills.
+  const cartQuantityByProductId = cartItems.reduce<Record<string, number>>((acc, item) => {
+    if (!item.isWeighed) {
+      acc[item.productId] = (acc[item.productId] || 0) + item.quantity;
+    }
+    return acc;
+  }, {});
+
   const handleCompleteSale = (result: any) => {
-    setLastSale(result);
+    // Capture the total at the moment of sale — cartItems (and therefore
+    // `totals`) are cleared right after, so the banner must not rely on
+    // recomputing totals from an already-emptied cart.
+    setLastSale({ ...result, totalCents: result.transaction?.totalCents ?? totals.grandTotalCents });
     setCartItems([]);
     setIsMobileCartOpen(false);
     // Refresh sync status to show pendingCount update
@@ -206,8 +207,6 @@ export default function App() {
           setAuthenticatedUser(user);
           localStorage.setItem("pos-user", JSON.stringify(user));
         }}
-        theme={theme}
-        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -218,50 +217,59 @@ export default function App() {
       <Header
         syncStatus={syncStatus}
         onTriggerSync={handleTriggerSync}
-        onToggleDrawer={() => setIsDrawerOpen(true)}
-        theme={theme}
-        onToggleTheme={toggleTheme}
+        onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         authenticatedUser={authenticatedUser}
         onLogout={handleLogout}
       />
 
-      {/* Last sale banner (receipt + drawer kick verification, offline badge) */}
+      {/* Last sale confirmation — plain-language, cashier-facing only.
+          Technical sync/receipt detail lives in the Diagnostics drawer. */}
       {lastSale && (
-        <div style={{
-          margin: "10px 16px 0",
-          padding: "10px 14px",
-          borderRadius: 10,
-          backgroundColor: lastSale.offline ? "rgba(217,119,87,0.12)" : "rgba(141,161,115,0.12)",
-          border: `1px solid ${lastSale.offline ? "rgba(217,119,87,0.35)" : "rgba(141,161,115,0.35)"}`,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: 12,
-          gap: 12,
-          flexWrap: "wrap",
-        }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-              Last sale: {lastSale.transactionId?.substring(0, 8)} · {formatCurrency(totals.grandTotalCents)} → change {formatCurrency(lastSale.changeDueCents ?? 0)}
-              {lastSale.offline && <span style={{ background: "#d97757", color: "#fff", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>OFFLINE QUEUED</span>}
-              {!lastSale.offline && <span style={{ background: "#8da173", color: "#fff", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>SYNCED</span>}
-            </div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>
-              payment=cash captured · drawer sale kick {lastSale.drawerKick?.bytesHex || "—"} · receipt {lastSale.receipt?.bytesLength || 0} bytes ({lastSale.receipt?.printerType || "virtual"})
-              {lastSale.queued && " · pending_sync → will retry on next sync tick"}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {syncStatus?.pendingCount !== undefined && syncStatus.pendingCount > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#d97757" }}>{syncStatus.pendingCount} queued</span>
-            )}
-            <button
-              onClick={() => setLastSale(null)}
-              style={{ background: "none", border: "1px solid var(--border-subtle)", borderRadius: 999, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}
+        <div
+          role="status"
+          style={{
+            margin: "10px 16px 0",
+            padding: "12px 16px",
+            borderRadius: "var(--radius-md)",
+            backgroundColor: lastSale.offline ? "var(--accent-amber-bg)" : "var(--accent-sage-bg)",
+            border: `1px solid ${lastSale.offline ? "var(--accent-amber-border)" : "var(--accent-sage-border)"}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span
+              style={{
+                width: 30, height: 30, borderRadius: "var(--radius-pill)", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                backgroundColor: lastSale.offline ? "var(--accent-amber)" : "var(--accent-sage)",
+                color: "var(--bg-app)",
+              }}
             >
-              Dismiss
-            </button>
+              <IconCheck size={15} />
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>
+                Sale complete · {formatCurrency(lastSale.totalCents ?? 0)}
+                {lastSale.changeDueCents ? ` · Change due ${formatCurrency(lastSale.changeDueCents)}` : ""}
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 1 }}>
+                {lastSale.offline
+                  ? "Saved on this till — will sync automatically once back online."
+                  : "Synced to the server."}
+              </div>
+            </div>
           </div>
+          <button
+            onClick={() => setLastSale(null)}
+            style={{ background: "none", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-pill)", padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -272,6 +280,7 @@ export default function App() {
           <ProductCatalog
             products={products}
             categories={categories}
+            cartQuantityByProductId={cartQuantityByProductId}
             onAddToCart={handleAddToCart}
             onBarcodeSubmit={handleBarcodeSubmit}
             isLoading={isLoadingProducts}
@@ -323,19 +332,7 @@ export default function App() {
 
           <button
             onClick={() => setIsMobileCartOpen(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "10px 18px",
-              borderRadius: "var(--radius-md)",
-              backgroundColor: "var(--accent-primary)",
-              color: "var(--accent-primary-text)",
-              border: "none",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
+            className="pos-btn-pill pos-btn-pill-primary"
           >
             <span>Review Cart</span>
             <IconArrowRight size={14} />
@@ -343,10 +340,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Slide-Over Diagnostics Drawer */}
+      {/* Settings Panel — display scale/zoom, density, theme */}
+      <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+      {/* Slide-Over Diagnostics Drawer (technical sync/telemetry detail) */}
       <SyncDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
         syncStatus={syncStatus}
         onTriggerSync={handleTriggerSync}
       />

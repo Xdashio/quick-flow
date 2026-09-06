@@ -1,13 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import type { SyncStatus } from "../lib/types";
-import { IconSync, IconSun, IconMoon, IconLock } from "./icons";
+import { useSettings } from "../lib/settings";
+import { IconSync, IconSun, IconMoon, IconLock, IconSettings, IconMenu, IconClose } from "./icons";
 
 interface HeaderProps {
   syncStatus: SyncStatus | null;
   onTriggerSync: () => void;
-  onToggleDrawer: () => void;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
+  onOpenDiagnostics: () => void;
+  onOpenSettings: () => void;
   authenticatedUser?: { name: string; role: string } | null;
   onLogout?: () => void;
 }
@@ -15,30 +15,17 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   syncStatus,
   onTriggerSync,
-  onToggleDrawer,
-  theme,
-  onToggleTheme,
+  onOpenDiagnostics,
+  onOpenSettings,
   authenticatedUser,
   onLogout,
 }) => {
+  const { theme, toggleTheme } = useSettings();
+  const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+
   const isSyncing = syncStatus?.status === "syncing";
   const isOffline = syncStatus?.status === "offline" || !syncStatus?.isOnline;
-  const productsCount = syncStatus?.productsCount ?? 0;
-
-  const formatLastSync = (isoString: string | null | undefined) => {
-    if (!isoString) return "Never";
-    try {
-      const date = new Date(isoString);
-      const diffSecs = Math.round((Date.now() - date.getTime()) / 1000);
-      if (diffSecs < 10) return "Just now";
-      if (diffSecs < 60) return `${diffSecs}s ago`;
-      const mins = Math.floor(diffSecs / 60);
-      if (mins < 60) return `${mins}m ago`;
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    } catch {
-      return "Recently";
-    }
-  };
+  const pendingCount = syncStatus?.pendingCount ?? 0;
 
   return (
     <header
@@ -47,36 +34,38 @@ export const Header: React.FC<HeaderProps> = ({
         alignItems: "center",
         justifyContent: "space-between",
         height: 64,
-        padding: "0 20px",
+        padding: "0 16px",
         backgroundColor: "var(--bg-surface)",
         borderBottom: "1px solid var(--border-subtle)",
         userSelect: "none",
         zIndex: 50,
+        position: "relative",
       }}
     >
       {/* Brand & Location Info */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
         <div
           style={{
             width: 32,
             height: 32,
-            borderRadius: "var(--radius-pill)",
-            backgroundColor: "var(--accent-terracotta)",
-            color: "#ffffff",
+            borderRadius: "var(--radius-md)",
+            backgroundColor: "var(--accent-primary)",
+            color: "var(--accent-primary-text)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontWeight: 800,
-            fontSize: 13,
-            letterSpacing: "-0.03em",
-            boxShadow: "0 2px 6px rgba(217, 119, 87, 0.3)",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+            fontSize: 12.5,
+            letterSpacing: "-0.02em",
+            flexShrink: 0,
           }}
         >
           QF
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.02em" }}>
+            <span style={{ fontWeight: 700, fontSize: 14.5, letterSpacing: "-0.01em" }}>
               QuickFlow
             </span>
             <span
@@ -84,159 +73,132 @@ export const Header: React.FC<HeaderProps> = ({
                 fontSize: 10.5,
                 fontFamily: "var(--font-mono)",
                 fontWeight: 600,
-                padding: "2px 8px",
-                borderRadius: "var(--radius-pill)",
+                padding: "2px 7px",
+                borderRadius: "var(--radius-sm)",
                 backgroundColor: "var(--bg-surface-subtle)",
                 color: "var(--text-muted)",
                 border: "1px solid var(--border-subtle)",
+                letterSpacing: "0.02em",
               }}
             >
               REG-01
             </span>
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--text-muted)", display: "none" }} className="header-subtitle">
-            Downtown Flagship · Offline SQLite Engine
+          <div className="header-subtitle" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+            Downtown Flagship
           </div>
         </div>
       </div>
 
-      {/* Sync Badge, Diagnostics & Theme Switcher */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {/* Unobtrusive SQLite Sync Badge (Pill) */}
+      {/* Right cluster: connectivity, quick actions, cashier — collapses to an
+          overflow menu on narrow tablets/laptops so nothing gets clipped. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Plain-language connectivity pill. Tapping opens the technical
+            diagnostics drawer for anyone who needs the detail — but the
+            everyday cashier view only needs "everything's fine" vs "heads up". */}
         <button
-          onClick={onToggleDrawer}
-          title="Click to inspect SQLite local cache diagnostics"
+          onClick={onOpenDiagnostics}
+          title="View sync diagnostics"
+          className="header-connectivity-pill"
           style={{
             display: "flex",
             alignItems: "center",
             gap: 8,
-            padding: "6px 14px",
+            height: "var(--touch-min)",
+            padding: "0 14px",
             borderRadius: "var(--radius-pill)",
             backgroundColor: isOffline
-              ? "var(--accent-rose-bg)"
-              : isSyncing
               ? "var(--accent-amber-bg)"
               : "var(--accent-sage-bg)",
             border: `1px solid ${
-              isOffline
-                ? "rgba(224, 109, 115, 0.3)"
-                : isSyncing
-                ? "rgba(224, 159, 62, 0.3)"
-                : "rgba(141, 161, 115, 0.35)"
+              isOffline ? "var(--accent-amber-border)" : "var(--accent-sage-border)"
             }`,
             cursor: "pointer",
             transition: "all 0.18s var(--ease-spring)",
           }}
         >
-          {/* Status Dot */}
           <span
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
-              backgroundColor: isOffline
-                ? "var(--accent-rose)"
-                : isSyncing
-                ? "var(--accent-amber)"
-                : "var(--accent-sage)",
+              backgroundColor: isOffline ? "var(--accent-amber)" : "var(--accent-sage)",
               display: "inline-block",
+              animation: isSyncing ? "pos-spin 1.2s linear infinite" : "none",
             }}
           />
-
           <span
             style={{
               fontSize: 12,
-              fontWeight: 600,
-              color: isOffline
-                ? "var(--accent-rose)"
-                : isSyncing
-                ? "var(--accent-amber)"
-                : "var(--accent-sage)",
+              fontWeight: 700,
+              color: isOffline ? "var(--accent-amber)" : "var(--accent-sage)",
             }}
           >
-            {isSyncing
-              ? "Syncing..."
-              : isOffline
-              ? `Offline (${productsCount})`
-              : `SQLite (${productsCount})`}
+            {isSyncing ? "Syncing" : isOffline ? "Working offline" : "Online"}
           </span>
+          {pendingCount > 0 && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 800,
+                padding: "1px 7px",
+                borderRadius: "var(--radius-pill)",
+                backgroundColor: "var(--accent-amber)",
+                color: "var(--bg-app)",
+              }}
+            >
+              {pendingCount} queued
+            </span>
+          )}
+        </button>
 
-          <span
-            style={{
-              fontSize: 11,
-              fontFamily: "var(--font-mono)",
-              color: "var(--text-muted)",
-            }}
+        {/* Primary quick actions — always visible */}
+        <div className="header-primary-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={onTriggerSync}
+            disabled={isSyncing}
+            className="pos-icon-btn"
+            title="Sync now"
+            aria-label="Sync now"
           >
-            · {formatLastSync(syncStatus?.lastSyncAt)}
-          </span>
-        </button>
+            <span style={{ display: "flex", animation: isSyncing ? "pos-spin 1s linear infinite" : "none" }}>
+              <IconSync size={16} />
+            </span>
+          </button>
 
-        {/* Sync Now Button (Pill) */}
-        <button
-          onClick={onTriggerSync}
-          disabled={isSyncing}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "7px 15px",
-            borderRadius: "var(--radius-pill)",
-            backgroundColor: "var(--bg-surface-elevated)",
-            border: "1px solid var(--border-subtle)",
-            color: "var(--text-primary)",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: isSyncing ? "default" : "pointer",
-            opacity: isSyncing ? 0.6 : 1,
-            transition: "all 0.15s ease",
-          }}
-          title="Trigger immediate sync against backend"
-        >
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              animation: isSyncing ? "pos-spin 1s linear infinite" : "none",
-            }}
+          <button
+            onClick={onOpenSettings}
+            className="pos-icon-btn"
+            title="Display settings"
+            aria-label="Display settings"
           >
-            <IconSync size={13} />
-          </span>
-          <span>{isSyncing ? "Syncing" : "Sync Now"}</span>
-        </button>
+            <IconSettings size={16} />
+          </button>
 
-        {/* Theme Toggle Button (Circular Pill) */}
-        <button
-          onClick={onToggleTheme}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 36,
-            height: 36,
-            borderRadius: "var(--radius-pill)",
-            backgroundColor: "var(--bg-surface-elevated)",
-            border: "1px solid var(--border-subtle)",
-            color: "var(--text-primary)",
-            cursor: "pointer",
-            transition: "all 0.15s ease",
-          }}
-          title={`Switch to ${theme === "dark" ? "Ivory Cream Light" : "Warm Obsidian Dark"} mode`}
-        >
-          {theme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
-        </button>
+          <button
+            onClick={toggleTheme}
+            className="pos-icon-btn"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+          </button>
+        </div>
 
-        {/* Cashier Badge & Lock Till Button */}
+        {/* Cashier badge & lock — always visible, collapses to just the lock
+            icon on very narrow widths via CSS */}
         {authenticatedUser && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div
+              className="header-cashier-name"
               style={{
                 fontSize: 12,
                 fontWeight: 700,
                 color: "var(--text-primary)",
                 backgroundColor: "var(--bg-surface-elevated)",
                 border: "1px solid var(--border-subtle)",
-                padding: "6px 12px",
+                padding: "0 12px",
+                height: "var(--touch-min)",
                 borderRadius: "var(--radius-pill)",
                 display: "flex",
                 alignItems: "center",
@@ -258,31 +220,89 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onLogout}
                 title="Lock Till / Sign Out"
+                className="pos-icon-btn"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 12px",
-                  borderRadius: "var(--radius-pill)",
                   backgroundColor: "var(--accent-rose-bg)",
-                  border: "1px solid rgba(224, 109, 115, 0.3)",
+                  border: "1px solid var(--accent-rose-border)",
                   color: "var(--accent-rose)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
                 }}
               >
-                <IconLock size={12} />
-                <span>Lock</span>
+                <IconLock size={16} />
               </button>
             )}
           </div>
         )}
+
+        {/* Overflow menu — appears only on narrow screens (see CSS) so the
+            same actions stay reachable without clipping the header. */}
+        <button
+          onClick={() => setIsOverflowOpen((v) => !v)}
+          className="pos-icon-btn header-overflow-btn"
+          title="More actions"
+          aria-label="More actions"
+        >
+          {isOverflowOpen ? <IconClose size={16} /> : <IconMenu size={16} />}
+        </button>
       </div>
+
+      {isOverflowOpen && (
+        <div
+          className="header-overflow-panel"
+          style={{
+            position: "absolute",
+            top: 64,
+            right: 16,
+            zIndex: 60,
+            backgroundColor: "var(--bg-surface-elevated)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--radius-md)",
+            boxShadow: "var(--shadow-elevated)",
+            padding: 8,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            minWidth: 200,
+          }}
+        >
+          <button className="header-overflow-item" onClick={() => { onTriggerSync(); setIsOverflowOpen(false); }}>
+            <IconSync size={15} /> Sync now
+          </button>
+          <button className="header-overflow-item" onClick={() => { onOpenSettings(); setIsOverflowOpen(false); }}>
+            <IconSettings size={15} /> Display settings
+          </button>
+          <button className="header-overflow-item" onClick={() => { toggleTheme(); setIsOverflowOpen(false); }}>
+            {theme === "dark" ? <IconSun size={15} /> : <IconMoon size={15} />}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+        </div>
+      )}
 
       <style>{`
         @media (min-width: 640px) {
           .header-subtitle { display: block !important; }
+        }
+        .header-subtitle { display: none; }
+
+        .header-overflow-btn { display: none; }
+        .header-overflow-item {
+          display: flex; align-items: center; gap: 8px;
+          padding: 9px 10px; border-radius: var(--radius-sm);
+          background: none; border: none; color: var(--text-primary);
+          font-size: 13px; font-weight: 600; cursor: pointer; text-align: left;
+          min-height: var(--touch-min);
+        }
+        .header-overflow-item:hover { background-color: var(--bg-surface-subtle); }
+
+        /* Narrow laptops/tablets: fold the icon actions + theme toggle into
+           the overflow menu, keep connectivity + cashier lock visible. */
+        @media (max-width: 860px) {
+          .header-primary-actions { display: none !important; }
+          .header-overflow-btn { display: inline-flex !important; }
+        }
+
+        @media (max-width: 520px) {
+          .header-cashier-name span:last-child { display: none; }
+          .header-connectivity-pill span:nth-child(2) { display: none; }
         }
       `}</style>
     </header>

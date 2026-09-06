@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { posApi } from "../lib/api";
+import { useSettings } from "../lib/settings";
 import { IconSun, IconMoon, IconBackspace } from "./icons";
 
 interface LoginProps {
   onSuccess: (user: { id: string; name: string; role: string; token: string }) => void;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onSuccess, theme, onToggleTheme }) => {
+export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
+  const { theme, toggleTheme } = useSettings();
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -87,23 +87,23 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, theme, onToggleTheme })
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div
             style={{
-              width: 48,
-              height: 48,
-              borderRadius: "var(--radius-pill)",
-              backgroundColor: "var(--accent-terracotta)",
-              color: "#ffffff",
+              width: 46,
+              height: 46,
+              borderRadius: "var(--radius-md)",
+              backgroundColor: "var(--accent-primary)",
+              color: "var(--accent-primary-text)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontWeight: 800,
-              fontSize: 18,
-              margin: "0 auto 12px",
-              boxShadow: "0 4px 12px rgba(217, 119, 87, 0.35)",
+              fontFamily: "var(--font-mono)",
+              fontWeight: 700,
+              fontSize: 17,
+              margin: "0 auto 14px",
             }}
           >
             QF
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
+          <h1 style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.01em", margin: "0 0 4px" }}>
             QuickFlow Register
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
@@ -119,7 +119,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, theme, onToggleTheme })
               padding: "10px 14px",
               borderRadius: "var(--radius-md)",
               backgroundColor: "var(--accent-rose-bg)",
-              border: "1px solid rgba(224, 109, 115, 0.3)",
+              border: "1px solid var(--accent-rose-border)",
               color: "var(--accent-rose)",
               fontSize: 13,
               fontWeight: 600,
@@ -255,12 +255,13 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, theme, onToggleTheme })
 
       <div style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 16 }}>
         <button
-          onClick={onToggleTheme}
+          onClick={toggleTheme}
           style={{
             background: "none",
             border: "1px solid var(--border-subtle)",
             borderRadius: "var(--radius-pill)",
-            padding: "6px 14px",
+            padding: "8px 16px",
+            minHeight: "var(--touch-min)",
             color: "var(--text-muted)",
             fontSize: 12,
             cursor: "pointer",

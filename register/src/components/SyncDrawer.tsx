@@ -51,53 +51,17 @@ export const SyncDrawer: React.FC<SyncDrawerProps> = ({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 999,
-        display: "flex",
-        justifyContent: "flex-end",
-        backgroundColor: "rgba(0, 0, 0, 0.45)",
-        backdropFilter: "blur(4px)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 380,
-          height: "100%",
-          backgroundColor: "var(--bg-surface)",
-          borderLeft: "1px solid var(--border-subtle)",
-          padding: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 18,
-          boxShadow: "-16px 0 32px rgba(0, 0, 0, 0.25)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="pos-panel-overlay" onClick={onClose}>
+      <div className="pos-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Sync diagnostics">
         {/* Drawer Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 700 }}>SQLite Cache & Sync</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700 }}>Diagnostics</h3>
             <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-              Offline data layer telemetry
+              SQLite cache & sync telemetry — for troubleshooting
             </p>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--text-secondary)",
-              cursor: "pointer",
-              padding: 4,
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
+          <button onClick={onClose} className="pos-icon-btn" title="Close" aria-label="Close diagnostics">
             <IconClose size={18} />
           </button>
         </div>
@@ -312,21 +276,12 @@ export const SyncDrawer: React.FC<SyncDrawerProps> = ({
           <button
             onClick={onTriggerSync}
             disabled={isSyncing}
+            className="pos-btn-pill pos-btn-pill-primary"
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
               width: "100%",
-              height: 40,
-              borderRadius: "var(--radius-md)",
-              backgroundColor: "var(--accent-primary)",
-              color: "var(--accent-primary-text)",
-              border: "none",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: isSyncing ? "default" : "pointer",
+              height: "var(--touch-min)",
               opacity: isSyncing ? 0.6 : 1,
+              cursor: isSyncing ? "default" : "pointer",
             }}
           >
             <span style={{ animation: isSyncing ? "pos-spin 1s linear infinite" : "none" }}>

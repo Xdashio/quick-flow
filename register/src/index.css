@@ -1,99 +1,144 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  /* 
-   * Claude.ai Inspired Warm Editorial Dark Mode (Warm Obsidian & Terracotta)
+  /*
+   * Terminal Grid — the register as an instrument, not an app.
+   * Near-black, flat, hairline-divided. One signal color (orange-red)
+   * reserved for the total and the primary action, so it means something
+   * every time it appears. Everything else is ink, dim ink, and lines.
    */
-  --bg-app: #141413;
-  --bg-surface: #1b1a17;
-  --bg-surface-elevated: #22211c;
-  --bg-surface-subtle: #292823;
-  --bg-surface-card: #1e1d19;
-  --border-subtle: #2e2c26;
-  --border-strong: #444138;
-  --border-focus: #d97757;
+  --bg-app: #0e0f0d;
+  --bg-surface: #161815;
+  --bg-surface-elevated: #1c1e1a;
+  --bg-surface-subtle: #202220;
+  --bg-surface-card: #161815;
+  --border-subtle: #272924;
+  --border-strong: #3c3e37;
+  --border-focus: #ff6a2c;
 
-  --text-primary: #f5f4ef;
-  --text-secondary: #b5b3a9;
-  --text-muted: #828076;
+  --text-primary: #eef0e8;
+  --text-secondary: #a4a89c;
+  --text-muted: #6c6f65;
 
-  /* Signature Claude Terracotta / Warm Clay */
-  --accent-primary: #d97757;
-  --accent-primary-hover: #c5684a;
-  --accent-primary-text: #ffffff;
-  --accent-terracotta: #d97757;
-  --accent-terracotta-bg: rgba(217, 119, 87, 0.16);
+  /* Signal — the one accent. Reserved for totals and primary actions. */
+  --accent-primary: #ff6a2c;
+  --accent-primary-hover: #e85a1e;
+  --accent-primary-text: #12130f;
+  --accent-primary-bg: rgba(255, 106, 44, 0.14);
+  --accent-primary-border: rgba(255, 106, 44, 0.4);
+  --accent-primary-ring: rgba(255, 106, 44, 0.18);
+  --accent-primary-shadow: rgba(255, 106, 44, 0.3);
+  /* Legacy alias — several components still reference this name directly */
+  --accent-terracotta: var(--accent-primary);
+  --accent-terracotta-bg: var(--accent-primary-bg);
 
-  /* Editorial Accents */
-  --accent-sage: #8da173;
-  --accent-sage-bg: rgba(141, 161, 115, 0.16);
-  --accent-mineral: #7da5ce;
-  --accent-mineral-bg: rgba(125, 165, 206, 0.16);
-  --accent-amber: #e09f3e;
-  --accent-amber-bg: rgba(224, 159, 62, 0.16);
-  --accent-rose: #e06d73;
-  --accent-rose-bg: rgba(224, 109, 115, 0.16);
-  /* Emerald green — used for online/success states */
-  --accent-emerald: #5fad7c;
-  --accent-emerald-bg: rgba(95, 173, 124, 0.16);
-  /* Blue — used for monospace links and API references */
-  --accent-blue: #7da5ce;
+  /* Status accents — meaning-bearing only (tax type, online state, warnings) */
+  --accent-sage: #33c96f;
+  --accent-sage-bg: rgba(51, 201, 111, 0.14);
+  --accent-sage-border: rgba(51, 201, 111, 0.35);
+  --accent-mineral: #4c9fe8;
+  --accent-mineral-bg: rgba(76, 159, 232, 0.14);
+  --accent-mineral-border: rgba(76, 159, 232, 0.35);
+  --accent-amber: #f0b23e;
+  --accent-amber-bg: rgba(240, 178, 62, 0.14);
+  --accent-amber-border: rgba(240, 178, 62, 0.35);
+  --accent-rose: #ef5b57;
+  --accent-rose-bg: rgba(239, 91, 87, 0.14);
+  --accent-rose-border: rgba(239, 91, 87, 0.4);
+  --accent-emerald: #33c96f;
+  --accent-emerald-bg: rgba(51, 201, 111, 0.14);
+  --accent-blue: #4c9fe8;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-pill: 9999px;
+  /* Flat, small-radius scale. --radius-pill is deliberately NOT a pill here —
+   * Terminal Grid uses small rounded rects instead of capsule shapes, so
+   * every component still referencing --radius-pill for buttons/chips/badges
+   * automatically picks up the instrument look without per-file edits. */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+  --radius-xl: 9px;
+  --radius-pill: 5px;
 
-  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-elevated: 0 12px 28px -6px rgba(0, 0, 0, 0.35), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 16px 32px -12px rgba(0, 0, 0, 0.55), 0 4px 10px -4px rgba(0, 0, 0, 0.4);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Settings-driven layout tokens ──────────────────────────────────── */
+  --touch-min: 44px;
+  --catalog-gap: 1px;
+  --card-pad: 16px;
+  --card-min-width: 200px;
+  --cart-item-gap: 10px;
+  --cart-item-pad: 14px;
 }
 
 [data-theme="light"] {
-  /* 
-   * Claude.ai Inspired Warm Editorial Light Mode (Ivory Cream, Warm Linen & Terracotta)
+  /*
+   * Terminal Grid — Light. Not a warm cream page: a cool, neutral daylight
+   * gray, like a spec sheet under shop lighting. Same instrument logic,
+   * same single signal color, darkened just enough to hold contrast on white.
    */
-  --bg-app: #faf9f5;
+  --bg-app: #eef0ee;
   --bg-surface: #ffffff;
-  --bg-surface-elevated: #f4f3ee;
-  --bg-surface-subtle: #eae8df;
+  --bg-surface-elevated: #f5f6f3;
+  --bg-surface-subtle: #e9ebe6;
   --bg-surface-card: #ffffff;
-  --border-subtle: #e8e6dc;
-  --border-strong: #d2cfc3;
-  --border-focus: #d97757;
+  --border-subtle: #dcdfd8;
+  --border-strong: #c2c6bc;
+  --border-focus: #d9491a;
 
-  --text-primary: #141413;
-  --text-secondary: #5c5a52;
-  --text-muted: #8c897e;
+  --text-primary: #14150f;
+  --text-secondary: #53564b;
+  --text-muted: #82857a;
 
-  /* Signature Claude Terracotta */
-  --accent-primary: #d97757;
-  --accent-primary-hover: #c5684a;
+  --accent-primary: #d9491a;
+  --accent-primary-hover: #c03e14;
   --accent-primary-text: #ffffff;
-  --accent-terracotta: #d97757;
-  --accent-terracotta-bg: #faece7;
+  --accent-primary-bg: rgba(217, 73, 26, 0.09);
+  --accent-primary-border: rgba(217, 73, 26, 0.35);
+  --accent-primary-ring: rgba(217, 73, 26, 0.14);
+  --accent-primary-shadow: rgba(217, 73, 26, 0.25);
+  --accent-terracotta: var(--accent-primary);
+  --accent-terracotta-bg: var(--accent-primary-bg);
 
-  /* Editorial Accents */
-  --accent-sage: #5e7345;
-  --accent-sage-bg: #edf3e8;
-  --accent-mineral: #48729d;
-  --accent-mineral-bg: #edf4fa;
-  --accent-amber: #b87a28;
-  --accent-amber-bg: #fdf5e8;
-  --accent-rose: #c94a50;
-  --accent-rose-bg: #fdf0f1;
-  /* Emerald green */
-  --accent-emerald: #3d8f5e;
-  --accent-emerald-bg: #e8f5ee;
-  /* Blue */
-  --accent-blue: #48729d;
+  --accent-sage: #2f9d5c;
+  --accent-sage-bg: rgba(47, 157, 92, 0.1);
+  --accent-sage-border: rgba(47, 157, 92, 0.3);
+  --accent-mineral: #2f74b5;
+  --accent-mineral-bg: rgba(47, 116, 181, 0.1);
+  --accent-mineral-border: rgba(47, 116, 181, 0.3);
+  --accent-amber: #b3791f;
+  --accent-amber-bg: rgba(179, 121, 31, 0.1);
+  --accent-amber-border: rgba(179, 121, 31, 0.3);
+  --accent-rose: #c8433f;
+  --accent-rose-bg: rgba(200, 67, 63, 0.1);
+  --accent-rose-border: rgba(200, 67, 63, 0.32);
+  --accent-emerald: #2f9d5c;
+  --accent-emerald-bg: rgba(47, 157, 92, 0.1);
+  --accent-blue: #2f74b5;
 
-  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-elevated: 0 12px 28px -6px rgba(0, 0, 0, 0.07), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --shadow-subtle: 0 1px 2px rgba(20, 21, 15, 0.08);
+  --shadow-elevated: 0 16px 32px -12px rgba(20, 21, 15, 0.16), 0 4px 10px -4px rgba(20, 21, 15, 0.08);
+}
+
+/* Compact density — tighter grid/list spacing, more visible at once. */
+[data-density="compact"] {
+  --catalog-gap: 1px;
+  --card-pad: 11px;
+  --card-min-width: 168px;
+  --cart-item-gap: 6px;
+  --cart-item-pad: 10px;
+}
+
+[data-density="spacious"] {
+  --catalog-gap: 1px;
+  --card-pad: 20px;
+  --card-min-width: 230px;
+  --cart-item-gap: 14px;
+  --cart-item-pad: 18px;
 }
 
 * {
@@ -112,7 +157,19 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom minimal scrollbar */
+html {
+  zoom: var(--display-scale, 1);
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+button {
+  min-height: var(--touch-min);
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -142,6 +199,11 @@ html, body, #root {
   background: transparent;
 }
 
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 /* App Shell Container */
 .pos-shell {
   display: flex;
@@ -152,7 +214,6 @@ html, body, #root {
   background-color: var(--bg-app);
 }
 
-/* Main Dual Pane Container */
 .pos-main-container {
   display: flex;
   flex: 1;
@@ -182,46 +243,76 @@ html, body, #root {
   transition: transform 0.35s var(--ease-spring);
 }
 
-/* Mobile Bottom Cart Dock Bar */
 .pos-mobile-cart-bar {
   display: none;
 }
 
-/* 
- * Claude Warm Editorial Double-Bezel Card Architecture
+/*
+ * Terminal Grid card — a flat cell in a spec sheet, not a floating card.
+ * No shadow, no lift; the grid lines (drawn by the parent's background +
+ * 1px gap) are the only separator between items. Hover just shifts the
+ * fill so scanning stays calm and instant.
  */
 .pos-product-card-shell {
-  background: var(--bg-surface-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 2.5px;
-  transition: all 0.22s var(--ease-spring);
+  background: var(--bg-surface-card);
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  transition: background-color 0.1s ease;
   cursor: pointer;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .pos-product-card-shell:hover {
-  border-color: var(--accent-terracotta);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-elevated);
+  background: var(--bg-surface-elevated);
 }
 
 .pos-product-card-shell:active {
-  transform: scale(0.985);
+  background: var(--bg-surface-subtle);
+}
+
+.pos-product-card-shell:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+  z-index: 1;
 }
 
 .pos-product-card-inner {
-  background: var(--bg-surface-card);
-  border-radius: calc(var(--radius-lg) - 2.5px);
-  padding: 16px;
+  background: transparent;
+  border-radius: 0;
+  padding: var(--card-pad);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
 }
 
-/* Pill Stepper Capsule */
+/* Badge shown on a card already in the cart. Small, rectangular, sits
+ * inline with the tag row rather than floating off the corner — quieter,
+ * more "spec sheet" than "notification". */
+.pos-card-qty-flag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-primary);
+  color: var(--accent-primary-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Pill Stepper Capsule — small rounded rect via --radius-pill */
 .pos-stepper-capsule {
   display: flex;
   align-items: center;
@@ -232,9 +323,9 @@ html, body, #root {
 }
 
 .pos-stepper-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-pill);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -242,7 +333,8 @@ html, body, #root {
   border: none;
   color: var(--text-primary);
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.1s ease;
+  transition: background-color 0.15s ease;
+  min-height: 0;
 }
 
 .pos-stepper-btn:hover {
@@ -250,49 +342,167 @@ html, body, #root {
 }
 
 .pos-stepper-btn:active {
-  transform: scale(0.9);
+  background: var(--border-subtle);
 }
 
-/* Pill Primary Buttons */
+/* Primary buttons */
 .pos-btn-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   padding: 10px 20px;
   font-family: var(--font-sans);
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: all 0.2s var(--ease-spring);
+  transition: background-color 0.15s ease;
 }
 
 .pos-btn-pill-primary {
   background-color: var(--accent-primary);
   color: var(--accent-primary-text);
-  box-shadow: 0 2px 8px rgba(217, 119, 87, 0.25);
 }
 
 .pos-btn-pill-primary:hover {
   background-color: var(--accent-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(217, 119, 87, 0.35);
 }
 
 .pos-btn-pill-primary:active {
-  transform: scale(0.98);
+  opacity: 0.9;
 }
 
-/* Global spin animation — shared by all components */
+/* Generic square icon button */
+.pos-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  min-height: var(--touch-min);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.pos-icon-btn:hover {
+  border-color: var(--border-strong);
+  background-color: var(--bg-surface-subtle);
+}
+
+/* Segmented control */
+.pos-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+.pos-segmented-btn {
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 0;
+  transition: all 0.15s ease;
+}
+
+.pos-segmented-btn.active {
+  background-color: var(--accent-primary);
+  color: var(--accent-primary-text);
+}
+
+/* Category navigation — underline tabs, not pill chips. This is the
+ * cashier's primary browse path, so it reads as fixed structural
+ * navigation (like a tab bar) rather than another row of buttons. */
+.pos-category-chip {
+  padding: 0 2px 10px;
+  border-radius: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  background-color: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.pos-category-chip:hover {
+  color: var(--text-secondary);
+}
+
+.pos-category-chip.active {
+  background-color: transparent;
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-primary);
+  box-shadow: none;
+}
+
+/* Slide-over panel shell */
+.pos-panel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  justify-content: flex-end;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.pos-panel {
+  width: 100%;
+  max-width: 400px;
+  height: 100%;
+  background-color: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: var(--shadow-elevated);
+  overflow-y: auto;
+}
+
 @keyframes pos-spin {
   100% { transform: rotate(360deg); }
 }
 
+@keyframes pos-pop-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 /* Responsive Media Queries */
 
-/* Large tablets (1024–1280px): standard dual-pane, slightly narrower cart */
+@media (min-width: 1920px) {
+  .pos-cart-pane {
+    width: 420px;
+  }
+
+  .pos-catalog-grid {
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--card-min-width) + 30px), 1fr)) !important;
+  }
+}
+
 @media (max-width: 1280px) {
   .pos-cart-pane {
     width: 360px;
@@ -300,16 +510,18 @@ html, body, #root {
   }
 }
 
-/* Smaller laptops / large tablets (769–1023px): collapse cart into a narrower pane */
 @media (max-width: 1023px) {
   .pos-cart-pane {
-    width: 300px;
-    min-width: 280px;
-    max-width: 300px;
+    width: 320px;
+    min-width: 290px;
+    max-width: 320px;
+  }
+
+  .header-subtitle {
+    display: none !important;
   }
 }
 
-/* Medium tablets (600–768px): stack layout — catalog fills screen, cart is a slide-up sheet */
 @media (max-width: 768px) {
   .pos-main-container {
     height: calc(100vh - 60px - 66px);
@@ -346,13 +558,15 @@ html, body, #root {
     box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
   }
 
-  /* Product grid: 2 columns on medium tablets */
   .pos-catalog-grid {
     grid-template-columns: repeat(2, 1fr) !important;
   }
+
+  .pos-panel {
+    max-width: 100%;
+  }
 }
 
-/* Phones (< 480px): single column catalog */
 @media (max-width: 480px) {
   .pos-catalog-grid {
     grid-template-columns: 1fr !important;
