@@ -120,22 +120,22 @@ export const TenderModal: React.FC<TenderModalProps> = ({
       return;
     }
 
-    setIsProcessing(true);
-    setErrorMsg(null);
-    try {
-      const result = await completeCashSale(items, totals, cashTenderedCents);
-      setIsSuccess(true);
-      setLastReceipt(result.receipt);
-      setTimeout(() => {
-        setIsSuccess(false);
-        onCompleteSale(result);
-        onClose();
-      }, 1100);
-    } catch (err: any) {
-      setErrorMsg(err.message || String(err));
-    } finally {
-      setIsProcessing(false);
-    }
+setIsProcessing(true);
+      setErrorMsg(null);
+      try {
+        const result = await completeCashSale(items, totals, cashTenderedCents);
+        setIsSuccess(true);
+        setLastReceipt(result.receipt);
+        setTimeout(() => {
+          setIsSuccess(false);
+          onCompleteSale(result);
+          onClose();
+        }, 8000);
+      } catch (err: any) {
+        setErrorMsg(err.message || String(err));
+      } finally {
+        setIsProcessing(false);
+      }
   };
 
   // ─── M-Pesa STK Push Execution ───────────────────────────────────────────
