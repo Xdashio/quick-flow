@@ -12,7 +12,6 @@ const API_URL_CANDIDATES = [
   process.env.POS_API_URL,
   "https://api.crestcyber.co.ke/api",
   "http://localhost:3000/api",
-  "https://quickflow-backend.up.railway.app/api",
 ].filter(Boolean);
 
 class SyncService {
@@ -284,8 +283,12 @@ class SyncService {
 
       // Deactivate products no longer present on backend (if backend responded with full list)
       const remoteProductIds = new Set(products.map((p) => p.id));
+      const deleteSkuConflict = db.prepare(`DELETE FROM products WHERE sku = ? AND id != ?`);
       const upsertAllProducts = db.transaction((prods) => {
         for (const p of prods) {
+          if (p.sku) {
+            deleteSkuConflict.run(p.sku, p.id);
+          }
           upsertProduct.run({
             id: p.id,
             sku: p.sku,

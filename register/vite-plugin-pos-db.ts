@@ -35,7 +35,6 @@ export function posDbPlugin(): Plugin {
           process.env.POS_API_URL,
           "https://api.crestcyber.co.ke/api",
           "http://localhost:3000/api",
-          "https://quickflow-backend.up.railway.app/api",
         ].filter(Boolean),
         intervalMs: 30000,
       });

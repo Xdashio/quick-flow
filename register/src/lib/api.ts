@@ -36,9 +36,8 @@ const isElectron = typeof window !== "undefined" && Boolean(window.posApi);
 // electron/backend-config.cjs on the main-process side):
 //   1. Technician-configured URL for this machine (Electron config IPC)
 //   2. Env overrides (VITE_API_URL / POS_API_URL)
-//   3. Deployed cloud backend
+//   3. Deployed cloud backend (https://api.crestcyber.co.ke/api)
 //   4. localhost:3000 (backend running on this same machine)
-//   5. Legacy railway deploy
 // A backend only counts as "reachable" if it answers with JSON — hosting
 // platforms serve an HTML interstitial with HTTP 200 when the app is down or
 // sleeping, which used to surface at login as the cryptic
@@ -73,7 +72,6 @@ export async function getApiUrlCandidates(): Promise<string[]> {
     (import.meta as any).env?.POS_API_URL,
     CLOUD_API_URL,
     "http://localhost:3000/api",
-    "https://quickflow-backend.up.railway.app/api",
   );
 
   const seen = new Set<string>();
