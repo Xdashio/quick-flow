@@ -168,7 +168,7 @@ export class MpesaService {
       TransactionType: transactionType,
       Amount: amountKes,
       PartyA: normalizedPhone,
-      PartyB: shortcode,
+      PartyB: this.config.get<string>('TILL_NUMBER') || shortcode,
       PhoneNumber: normalizedPhone,
       CallBackURL: callbackUrl,
       AccountReference: transactionId.slice(0, 12),
