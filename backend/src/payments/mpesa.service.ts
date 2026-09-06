@@ -284,6 +284,16 @@ export class MpesaService {
         `[Daraja] Payment FAILED: CheckoutRequestID=${CheckoutRequestID} reason="${ResultDesc}"`,
       );
 
+      // DEBUG: Write the exact Safaricom error to a file so we can read it easily
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        fs.writeFileSync(
+          path.join(process.cwd(), 'public', 'daraja-error.txt'),
+          `[${new Date().toISOString()}] FAILED CheckoutRequestID=${CheckoutRequestID}\nReason: ${ResultDesc}\nResultCode: ${ResultCode}\n\n`
+        );
+      } catch (e) {}
+
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { status: 'failed' },
