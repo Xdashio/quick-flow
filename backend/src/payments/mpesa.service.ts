@@ -155,24 +155,24 @@ export class MpesaService {
       String(now.getSeconds()).padStart(2, '0'),
     ].join('');
 
-    // For CustomerBuyGoodsOnline, Safaricom usually expects the Till Number for BusinessShortCode, PartyB, and Password generation
+    // For Buy Goods, Safaricom strictly requires BusinessShortCode to be the Store Number, and PartyB to be the Till Number.
+    // The password is generated using the Store Number (BusinessShortCode).
     const tillNumber = this.config.get<string>('TILL_NUMBER');
-    const b2cShortcode = transactionType === 'CustomerBuyGoodsOnline' && tillNumber ? tillNumber : shortcode;
 
     // STK Push password = base64(BusinessShortCode + passkey + timestamp)
-    const password = Buffer.from(`${b2cShortcode}${passkey}${timestamp}`).toString('base64');
+    const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
 
     // Amount in whole KES (Daraja does not accept cents)
     const amountKes = Math.max(1, Math.ceil(amountCents / 100));
 
     const payload = {
-      BusinessShortCode: b2cShortcode,
+      BusinessShortCode: shortcode,
       Password: password,
       Timestamp: timestamp,
       TransactionType: transactionType,
       Amount: amountKes,
       PartyA: normalizedPhone,
-      PartyB: b2cShortcode,
+      PartyB: transactionType === 'CustomerBuyGoodsOnline' && tillNumber ? tillNumber : shortcode,
       PhoneNumber: normalizedPhone,
       CallBackURL: callbackUrl,
       AccountReference: transactionId.slice(0, 12),
