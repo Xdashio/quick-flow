@@ -36,16 +36,20 @@ export class CheckoutService {
       );
     }
 
-    const location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
-    if (!location) throw new NotFoundException(`Location ${dto.locationId} not found`);
+    let location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
+    if (!location) {
+      location = await this.prisma.location.findFirst();
+      if (!location) throw new NotFoundException('No location configured in database');
+      dto.locationId = location.id;
+    }
 
     if (dto.registerId) {
       const reg = await this.prisma.register.findUnique({ where: { id: dto.registerId } });
-      if (!reg) throw new NotFoundException(`Register ${dto.registerId} not found`);
+      if (!reg) dto.registerId = undefined;
     }
     if (dto.cashierId) {
       const user = await this.prisma.user.findUnique({ where: { id: dto.cashierId } });
-      if (!user) throw new NotFoundException(`Cashier ${dto.cashierId} not found`);
+      if (!user) dto.cashierId = undefined;
     }
 
     const costByProductId = new Map<string, number | null>();
@@ -189,8 +193,12 @@ export class CheckoutService {
       throw new BadRequestException('Monetary fields must be integer cents');
     }
 
-    const location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
-    if (!location) throw new NotFoundException(`Location ${dto.locationId} not found`);
+    let location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
+    if (!location) {
+      location = await this.prisma.location.findFirst();
+      if (!location) throw new NotFoundException('No location configured in database');
+      dto.locationId = location.id;
+    }
 
     const costByProductId = new Map<string, number | null>();
     for (const li of dto.lineItems) {
@@ -252,8 +260,12 @@ export class CheckoutService {
       throw new BadRequestException('Monetary fields must be integer cents');
     }
 
-    const location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
-    if (!location) throw new NotFoundException(`Location ${dto.locationId} not found`);
+    let location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
+    if (!location) {
+      location = await this.prisma.location.findFirst();
+      if (!location) throw new NotFoundException('No location configured in database');
+      dto.locationId = location.id;
+    }
 
     const formattedCode = dto.mpesaCode.trim().toUpperCase();
 

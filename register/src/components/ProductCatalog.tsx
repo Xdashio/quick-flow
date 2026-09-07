@@ -33,7 +33,7 @@ const ProductImage: React.FC<ProductImageProps> = ({ product, accentColor }) => 
 
     let cancelled = false;
 
-    if (product.image_key.startsWith("http://") || product.image_key.startsWith("https://")) {
+    if (typeof product.image_key === "string" && (product.image_key.startsWith("http://") || product.image_key.startsWith("https://"))) {
       setSrc(product.image_key);
     }
 

@@ -36,18 +36,22 @@ let CheckoutService = CheckoutService_1 = class CheckoutService {
         if (dto.amountTenderedCents < dto.totalCents) {
             throw new common_1.BadRequestException(`Insufficient tendered: ${dto.amountTenderedCents} < ${dto.totalCents} (short by ${dto.totalCents - dto.amountTenderedCents}c)`);
         }
-        const location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
-        if (!location)
-            throw new common_1.NotFoundException(`Location ${dto.locationId} not found`);
+        let location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
+        if (!location) {
+            location = await this.prisma.location.findFirst();
+            if (!location)
+                throw new common_1.NotFoundException('No location configured in database');
+            dto.locationId = location.id;
+        }
         if (dto.registerId) {
             const reg = await this.prisma.register.findUnique({ where: { id: dto.registerId } });
             if (!reg)
-                throw new common_1.NotFoundException(`Register ${dto.registerId} not found`);
+                dto.registerId = undefined;
         }
         if (dto.cashierId) {
             const user = await this.prisma.user.findUnique({ where: { id: dto.cashierId } });
             if (!user)
-                throw new common_1.NotFoundException(`Cashier ${dto.cashierId} not found`);
+                dto.cashierId = undefined;
         }
         const costByProductId = new Map();
         for (const li of dto.lineItems) {
@@ -180,9 +184,13 @@ let CheckoutService = CheckoutService_1 = class CheckoutService {
         if (!Number.isInteger(dto.totalCents) || !Number.isInteger(dto.subtotalCents) || !Number.isInteger(dto.taxCents)) {
             throw new common_1.BadRequestException('Monetary fields must be integer cents');
         }
-        const location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
-        if (!location)
-            throw new common_1.NotFoundException(`Location ${dto.locationId} not found`);
+        let location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
+        if (!location) {
+            location = await this.prisma.location.findFirst();
+            if (!location)
+                throw new common_1.NotFoundException('No location configured in database');
+            dto.locationId = location.id;
+        }
         const costByProductId = new Map();
         for (const li of dto.lineItems) {
             const prod = await this.prisma.product.findUnique({ where: { id: li.productId } });
@@ -230,9 +238,13 @@ let CheckoutService = CheckoutService_1 = class CheckoutService {
         if (!Number.isInteger(dto.totalCents) || !Number.isInteger(dto.subtotalCents) || !Number.isInteger(dto.taxCents)) {
             throw new common_1.BadRequestException('Monetary fields must be integer cents');
         }
-        const location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
-        if (!location)
-            throw new common_1.NotFoundException(`Location ${dto.locationId} not found`);
+        let location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
+        if (!location) {
+            location = await this.prisma.location.findFirst();
+            if (!location)
+                throw new common_1.NotFoundException('No location configured in database');
+            dto.locationId = location.id;
+        }
         const formattedCode = dto.mpesaCode.trim().toUpperCase();
         const existingPayment = await this.prisma.payment.findFirst({
             where: { mpesaReceiptNumber: formattedCode },
