@@ -121,90 +121,137 @@ export async function apiFetch(path, init = {}) {
     }
     throw new Error(`No reachable backend. Check the till's backend setting or network. (${unreachable.join("; ")})`);
 }
+function mapBackendProductToCached(p) {
+    return {
+        id: p.id,
+        sku: p.sku,
+        barcode: p.barcode ?? null,
+        name: p.name,
+        description: p.description ?? null,
+        unit_type: p.unitType || p.unit_type || "each",
+        is_weighed: p.isWeighed ? 1 : 0,
+        price_cents: p.priceCents ?? p.price_cents ?? 0,
+        tax_category_id: p.taxCategoryId ?? p.tax_category_id ?? null,
+        category_id: p.categoryId ?? p.category_id ?? null,
+        active: p.active ? 1 : 0,
+        image_key: p.imageKey ?? p.image_key ?? null,
+        image_cached_at: null,
+        created_at: p.createdAt || p.created_at || new Date().toISOString(),
+        updated_at: p.updatedAt || p.updated_at || new Date().toISOString(),
+        tax_category_name: p.taxCategory?.name ?? p.tax_category_name ?? null,
+        tax_category_rate_bp: p.taxCategory?.rateBp ?? p.tax_category_rate_bp ?? null,
+        category_name: p.category?.name ?? p.category_name ?? null,
+    };
+}
+function mapBackendCategoryToCached(c) {
+    return {
+        id: c.id,
+        name: c.name,
+        parent_id: c.parentId ?? c.parent_id ?? null,
+    };
+}
+function mapBackendTaxCategoryToCached(tc) {
+    return {
+        id: tc.id,
+        name: tc.name,
+        rate_bp: tc.rateBp ?? tc.rate_bp ?? 0,
+    };
+}
 export const posApi = {
     isElectron,
     async searchProducts(query = "", categoryId) {
         if (window.posApi) {
             return window.posApi.searchProducts(query, categoryId);
         }
-        const params = new URLSearchParams();
-        if (query)
-            params.set("query", query);
-        if (categoryId)
-            params.set("categoryId", categoryId);
-        const res = await fetch(`/api/local-sqlite/products?${params.toString()}`);
-        if (!res.ok)
-            throw new Error(`Search failed: ${res.statusText}`);
-        return res.json();
+        const res = await apiFetch("/products");
+        const raw = await res.json();
+        let products = (Array.isArray(raw) ? raw : []).map(mapBackendProductToCached).filter((p) => p.active === 1);
+        if (query && query.trim()) {
+            const q = query.trim().toLowerCase();
+            products = products.filter((p) => p.name.toLowerCase().includes(q) ||
+                p.sku.toLowerCase().includes(q) ||
+                (p.barcode && p.barcode.toLowerCase() === q));
+        }
+        if (categoryId) {
+            products = products.filter((p) => p.category_id === categoryId);
+        }
+        return products;
     },
     async getProductByBarcode(barcode) {
         if (window.posApi) {
             return window.posApi.getProductByBarcode(barcode);
         }
-        const res = await fetch(`/api/local-sqlite/products?barcode=${encodeURIComponent(barcode)}`);
-        if (!res.ok)
-            throw new Error(`Barcode lookup failed: ${res.statusText}`);
-        return res.json();
+        try {
+            const res = await apiFetch(`/products/barcode/${encodeURIComponent(barcode)}`);
+            const raw = await res.json();
+            return raw ? mapBackendProductToCached(raw) : null;
+        }
+        catch {
+            return null;
+        }
     },
     async getAllProducts() {
         if (window.posApi) {
             return window.posApi.getAllProducts();
         }
-        const res = await fetch("/api/local-sqlite/products");
-        if (!res.ok)
-            throw new Error(`Get products failed: ${res.statusText}`);
-        return res.json();
+        const res = await apiFetch("/products");
+        const raw = await res.json();
+        return (Array.isArray(raw) ? raw : []).map(mapBackendProductToCached).filter((p) => p.active === 1);
     },
     async getTaxCategories() {
         if (window.posApi) {
             return window.posApi.getTaxCategories();
         }
-        const res = await fetch("/api/local-sqlite/tax-categories");
-        if (!res.ok)
-            throw new Error(`Get tax categories failed: ${res.statusText}`);
-        return res.json();
+        const res = await apiFetch("/tax-categories");
+        const raw = await res.json();
+        return (Array.isArray(raw) ? raw : []).map(mapBackendTaxCategoryToCached);
     },
     async getCategories() {
         if (window.posApi) {
             return window.posApi.getCategories();
         }
-        const res = await fetch("/api/local-sqlite/categories");
-        if (!res.ok)
-            throw new Error(`Get categories failed: ${res.statusText}`);
-        return res.json();
+        const res = await apiFetch("/categories");
+        const raw = await res.json();
+        return (Array.isArray(raw) ? raw : []).map(mapBackendCategoryToCached);
     },
     async getSyncStatus() {
         if (window.posApi) {
             return window.posApi.getSyncStatus();
         }
-        const res = await fetch("/api/local-sqlite/sync-status");
-        if (!res.ok)
-            throw new Error(`Get sync status failed: ${res.statusText}`);
-        return res.json();
+        const isOnline = await this.checkConnectivity();
+        const [products, taxCats] = await Promise.all([
+            this.getAllProducts().catch(() => []),
+            this.getTaxCategories().catch(() => []),
+        ]);
+        return {
+            success: true,
+            isOnline,
+            lastSyncAt: new Date().toISOString(),
+            status: isOnline ? "synced" : "offline",
+            productsCount: products.length,
+            taxCategoriesCount: taxCats.length,
+        };
     },
     async triggerSync() {
         if (window.posApi) {
             return window.posApi.triggerSync();
         }
-        const res = await fetch("/api/local-sqlite/sync-trigger", { method: "POST" });
-        if (!res.ok)
-            throw new Error(`Trigger sync failed: ${res.statusText}`);
-        return res.json();
+        return this.getSyncStatus();
     },
     onSyncUpdate(callback) {
         if (window.posApi) {
             return window.posApi.onSyncUpdate(callback);
         }
-        // Poll sync status every 5 seconds in browser dev
+        // Poll sync status every 15 seconds in browser web mode
         const timer = setInterval(async () => {
             try {
                 const status = await this.getSyncStatus();
                 callback(status);
             }
             catch {
-                // ignore dev polling error
+                // ignore polling error
             }
-        }, 5000);
+        }, 15000);
         return () => clearInterval(timer);
     },
     async login(username, password) {
