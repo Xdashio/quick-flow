@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import type { CartItem, CartTotals } from "../lib/types";
 import { formatCurrency, formatTaxRate } from "../lib/cart";
-import { IconCart, IconTrash, IconClose, IconPlus, IconMinus, IconArrowRight } from "./icons";
+import { IconCart, IconTrash, IconClose, IconPlus, IconMinus, IconArrowRight, IconPause, IconPlay } from "./icons";
 
 interface CartProps {
   items: CartItem[];
@@ -231,7 +231,7 @@ export const Cart: React.FC<CartProps> = ({
                 whiteSpace: "nowrap",
               }}
             >
-              ⏸ Hold
+              <IconPause size={12} /> Hold Sale
             </button>
           )}
           {/* Restore held sale button */}
@@ -249,7 +249,7 @@ export const Cart: React.FC<CartProps> = ({
                 whiteSpace: "nowrap",
               }}
             >
-              ▶ Restore Sale
+              <IconPlay size={12} /> Restore Sale
             </button>
           )}
           {/* Two-step Clear Cart button */}

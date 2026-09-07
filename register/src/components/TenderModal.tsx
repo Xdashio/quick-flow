@@ -887,7 +887,7 @@ setIsProcessing(true);
                     <span style={{ flex: 1, color: "var(--text-primary)", fontWeight: 500 }}>
                       {item.name}
                       {item.quantity > 1 && (
-                        <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> ×{item.quantity}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> x{item.quantity}</span>
                       )}
                     </span>
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }}>

@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useEffect, useRef } from "react";
 import { formatCurrency, formatTaxRate } from "../lib/cart";
-import { IconCart, IconTrash, IconClose, IconArrowRight } from "./icons";
+import { IconCart, IconTrash, IconClose, IconArrowRight, IconPause, IconPlay } from "./icons";
 /**
  * Inline two-step confirmation hook.
  * Returns [isPending, arm, reset].
@@ -127,7 +127,7 @@ export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCar
                                     backgroundColor: "var(--bg-surface-subtle)",
                                     color: "var(--text-secondary)",
                                     border: "1px solid var(--border-subtle)",
-                                }, children: totals.itemCount })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [items.length > 0 && (_jsx("button", { onClick: onHoldSale, title: "Park this sale and start a new one", style: {
+                                }, children: totals.itemCount })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [items.length > 0 && (_jsxs("button", { onClick: onHoldSale, title: "Park this sale and start a new one", style: {
                                     display: "flex", alignItems: "center", gap: 4,
                                     background: "none", border: "1px solid transparent",
                                     color: "var(--text-muted)", fontSize: 12, fontWeight: 700,
@@ -135,7 +135,7 @@ export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCar
                                     borderRadius: "var(--radius-pill)",
                                     transition: "all 0.2s var(--ease-spring)",
                                     whiteSpace: "nowrap",
-                                }, children: "\u23F8 Hold" })), hasHeldSale && items.length === 0 && (_jsx("button", { onClick: onRestoreSale, title: "Restore held sale", style: {
+                                }, children: [_jsx(IconPause, { size: 12 }), " Hold Sale"] })), hasHeldSale && items.length === 0 && (_jsxs("button", { onClick: onRestoreSale, title: "Restore held sale", style: {
                                     display: "flex", alignItems: "center", gap: 4,
                                     background: "var(--accent-amber-bg)",
                                     border: "1px solid var(--accent-amber-border)",
@@ -143,7 +143,7 @@ export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCar
                                     cursor: "pointer", padding: "4px 10px",
                                     borderRadius: "var(--radius-pill)",
                                     whiteSpace: "nowrap",
-                                }, children: "\u25B6 Restore Sale" })), items.length > 0 && (_jsxs("button", { onClick: handleClearClick, title: clearPending ? "Click again to clear all items" : "Clear all line items", style: {
+                                }, children: [_jsx(IconPlay, { size: 12 }), " Restore Sale"] })), items.length > 0 && (_jsxs("button", { onClick: handleClearClick, title: clearPending ? "Click again to clear all items" : "Clear all line items", style: {
                                     display: "flex",
                                     alignItems: "center",
                                     gap: 4,

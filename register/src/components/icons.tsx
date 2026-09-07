@@ -178,3 +178,16 @@ export const IconMenu: React.FC<IconProps> = ({ size = 18, ...props }) => (
     <line x1="4" y1="17" x2="20" y2="17" />
   </svg>
 );
+
+export const IconPause: React.FC<IconProps> = ({ size = 16, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="6" y="4" width="4" height="16" />
+    <rect x="14" y="4" width="4" height="16" />
+  </svg>
+);
+
+export const IconPlay: React.FC<IconProps> = ({ size = 16, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <polygon points="5 3 19 12 5 21 5 3" />
+  </svg>
+);
