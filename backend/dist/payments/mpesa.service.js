@@ -83,6 +83,7 @@ let MpesaService = MpesaService_1 = class MpesaService {
             String(now.getMinutes()).padStart(2, '0'),
             String(now.getSeconds()).padStart(2, '0'),
         ].join('');
+        const tillNumber = this.config.get('TILL_NUMBER');
         const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
         const amountKes = Math.max(1, Math.ceil(amountCents / 100));
         const payload = {
@@ -92,7 +93,7 @@ let MpesaService = MpesaService_1 = class MpesaService {
             TransactionType: transactionType,
             Amount: amountKes,
             PartyA: normalizedPhone,
-            PartyB: shortcode,
+            PartyB: transactionType === 'CustomerBuyGoodsOnline' && tillNumber ? tillNumber : shortcode,
             PhoneNumber: normalizedPhone,
             CallBackURL: callbackUrl,
             AccountReference: transactionId.slice(0, 12),
@@ -165,6 +166,12 @@ let MpesaService = MpesaService_1 = class MpesaService {
         }
         else {
             this.logger.warn(`[Daraja] Payment FAILED: CheckoutRequestID=${CheckoutRequestID} reason="${ResultDesc}"`);
+            try {
+                const fs = require('fs');
+                const path = require('path');
+                fs.writeFileSync(path.join(process.cwd(), 'public', 'daraja-error.txt'), `[${new Date().toISOString()}] FAILED CheckoutRequestID=${CheckoutRequestID}\nReason: ${ResultDesc}\nResultCode: ${ResultCode}\n\n`);
+            }
+            catch (e) { }
             await this.prisma.payment.update({
                 where: { id: payment.id },
                 data: { status: 'failed' },

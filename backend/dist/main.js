@@ -6,12 +6,29 @@ const app_module_1 = require("./app.module");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.setGlobalPrefix('api');
-    const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3001,http://localhost:3000')
+    const defaultOrigins = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5173',
+        'https://dash.crestcyber.co.ke',
+        'https://register.crestcyber.co.ke',
+    ];
+    const envOrigins = (process.env.CORS_ORIGIN || '')
         .split(',')
         .map((o) => o.trim())
         .filter(Boolean);
+    const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
     app.enableCors({
-        origin: allowedOrigins,
+        origin: (origin, callback) => {
+            if (!origin)
+                return callback(null, true);
+            if (allowedOrigins.includes(origin) ||
+                origin.endsWith('.crestcyber.co.ke') ||
+                origin === 'https://crestcyber.co.ke') {
+                return callback(null, true);
+            }
+            return callback(null, false);
+        },
         credentials: true,
     });
     app.useGlobalPipes(new common_1.ValidationPipe({
