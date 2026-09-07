@@ -5,7 +5,9 @@ export function createCartItem(
   quantity: number = 1
 ): CartItem {
   const taxRateBp = product.tax_category_rate_bp ?? 0;
-  const lineSubtotalCents = Math.round(product.price_cents * quantity);
+  const grossCents = Math.round(product.price_cents * quantity);
+  const discountCents = 0;
+  const lineSubtotalCents = Math.max(0, grossCents - discountCents);
   const lineTaxCents = Math.round((lineSubtotalCents * taxRateBp) / 10000);
   const lineTotalCents = lineSubtotalCents + lineTaxCents;
 
@@ -22,6 +24,7 @@ export function createCartItem(
     taxCategoryId: product.tax_category_id,
     taxCategoryName: product.tax_category_name || (taxRateBp > 0 ? "Standard VAT" : "Zero Rated"),
     taxRateBp,
+    discountCents,
     lineSubtotalCents,
     lineTaxCents,
     lineTotalCents,
@@ -30,17 +33,23 @@ export function createCartItem(
 
 export function updateItemQuantity(item: CartItem, newQty: number): CartItem {
   const quantity = Math.max(item.isWeighed ? 0.05 : 1, newQty);
-  const lineSubtotalCents = Math.round(item.priceCents * quantity);
+  const grossCents = Math.round(item.priceCents * quantity);
+  const discountCents = Math.min(item.discountCents, grossCents);
+  const lineSubtotalCents = Math.max(0, grossCents - discountCents);
   const lineTaxCents = Math.round((lineSubtotalCents * item.taxRateBp) / 10000);
   const lineTotalCents = lineSubtotalCents + lineTaxCents;
 
-  return {
-    ...item,
-    quantity,
-    lineSubtotalCents,
-    lineTaxCents,
-    lineTotalCents,
-  };
+  return { ...item, quantity, discountCents, lineSubtotalCents, lineTaxCents, lineTotalCents };
+}
+
+/** Apply a flat-cents or percentage discount to a line item */
+export function applyDiscount(item: CartItem, discountCents: number): CartItem {
+  const grossCents = Math.round(item.priceCents * item.quantity);
+  const clampedDiscount = Math.max(0, Math.min(discountCents, grossCents));
+  const lineSubtotalCents = grossCents - clampedDiscount;
+  const lineTaxCents = Math.round((lineSubtotalCents * item.taxRateBp) / 10000);
+  const lineTotalCents = lineSubtotalCents + lineTaxCents;
+  return { ...item, discountCents: clampedDiscount, lineSubtotalCents, lineTaxCents, lineTotalCents };
 }
 
 export function calculateCartTotals(items: CartItem[]): CartTotals {

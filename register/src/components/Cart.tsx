@@ -11,6 +11,10 @@ interface CartProps {
   onClearCart: () => void;
   onOpenTender: () => void;
   onCloseMobileCart?: () => void;
+  onApplyDiscount: (id: string, discountCents: number) => void;
+  onHoldSale: () => void;
+  onRestoreSale: () => void;
+  hasHeldSale: boolean;
 }
 
 /**
@@ -45,8 +49,12 @@ const CartLineItem: React.FC<{
   item: CartItem;
   onUpdateQuantity: (id: string, newQty: number) => void;
   onRemoveItem: (id: string) => void;
-}> = ({ item, onUpdateQuantity, onRemoveItem }) => {
+  onApplyDiscount: (id: string, discountCents: number) => void;
+}> = ({ item, onUpdateQuantity, onRemoveItem, onApplyDiscount }) => {
   const [confirmPending, armConfirm, resetConfirm] = useConfirm(2000);
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountInput, setDiscountInput] = useState("");
+  const [discountType, setDiscountType] = useState<"flat" | "pct">("flat");
 
   const handleRemoveClick = () => {
     if (confirmPending) {
@@ -55,6 +63,27 @@ const CartLineItem: React.FC<{
     } else {
       armConfirm();
     }
+  };
+
+  const handleApplyDiscount = () => {
+    const val = parseFloat(discountInput);
+    if (isNaN(val) || val < 0) return;
+    let cents: number;
+    if (discountType === "pct") {
+      const pct = Math.min(val, 100) / 100;
+      cents = Math.round(item.priceCents * item.quantity * pct);
+    } else {
+      cents = Math.round(val * 100);
+    }
+    onApplyDiscount(item.id, cents);
+    setDiscountOpen(false);
+    setDiscountInput("");
+  };
+
+  const handleClearDiscount = () => {
+    onApplyDiscount(item.id, 0);
+    setDiscountOpen(false);
+    setDiscountInput("");
   };
 
   return (
@@ -115,60 +144,6 @@ const CartLineItem: React.FC<{
         </button>
       </div>
 
-      {/* Bottom Row: Quantity Capsule and Line Total */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingTop: 8,
-          borderTop: "1px solid var(--border-subtle)",
-        }}
-      >
-        {/* Pill Stepper Capsule */}
-        <div className="pos-stepper-capsule">
-          <button
-            onClick={() => onUpdateQuantity(item.id, item.quantity - (item.isWeighed ? 0.25 : 1))}
-            className="pos-stepper-btn"
-          >
-            <IconMinus size={11} />
-          </button>
-          <span
-            style={{
-              padding: "0 8px",
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              fontWeight: 600,
-              minWidth: 26,
-              textAlign: "center",
-            }}
-          >
-            {item.quantity}
-          </span>
-          <button
-            onClick={() => onUpdateQuantity(item.id, item.quantity + (item.isWeighed ? 0.25 : 1))}
-            className="pos-stepper-btn"
-          >
-            <IconPlus size={11} />
-          </button>
-        </div>
-
-        {/* Line Total — tax is already itemized once, correctly, in the
-            summary ledger below the list. Repeating "incl. X% tax" on every
-            single line restated the same fact at a second scale for no
-            operational reason, so it's gone; the rate is still visible via
-            the tax-type dot on the product card and the ledger breakdown. */}
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontWeight: 700,
-            fontSize: 14,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {formatCurrency(item.lineTotalCents)}
-        </div>
-      </div>
     </div>
   );
 };
@@ -181,8 +156,13 @@ export const Cart: React.FC<CartProps> = ({
   onClearCart,
   onOpenTender,
   onCloseMobileCart,
+  onApplyDiscount,
+  onHoldSale,
+  onRestoreSale,
+  hasHeldSale,
 }) => {
   const [clearPending, armClear, resetClear] = useConfirm(2500);
+  const totalDiscountCents = items.reduce((sum, i) => sum + (i.discountCents || 0), 0);
 
   const handleClearClick = () => {
     if (clearPending) {
@@ -236,6 +216,42 @@ export const Cart: React.FC<CartProps> = ({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Hold sale button */}
+          {items.length > 0 && (
+            <button
+              onClick={onHoldSale}
+              title="Park this sale and start a new one"
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: "none", border: "1px solid transparent",
+                color: "var(--text-muted)", fontSize: 12, fontWeight: 700,
+                cursor: "pointer", padding: "4px 10px",
+                borderRadius: "var(--radius-pill)",
+                transition: "all 0.2s var(--ease-spring)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ⏸ Hold
+            </button>
+          )}
+          {/* Restore held sale button */}
+          {hasHeldSale && items.length === 0 && (
+            <button
+              onClick={onRestoreSale}
+              title="Restore held sale"
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                background: "var(--accent-amber-bg)",
+                border: "1px solid var(--accent-amber-border)",
+                color: "var(--accent-amber)", fontSize: 12, fontWeight: 700,
+                cursor: "pointer", padding: "4px 10px",
+                borderRadius: "var(--radius-pill)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ▶ Restore Sale
+            </button>
+          )}
           {/* Two-step Clear Cart button */}
           {items.length > 0 && (
             <button
@@ -335,6 +351,7 @@ export const Cart: React.FC<CartProps> = ({
                 item={item}
                 onUpdateQuantity={onUpdateQuantity}
                 onRemoveItem={onRemoveItem}
+                onApplyDiscount={onApplyDiscount}
               />
             ))}
           </div>
@@ -380,6 +397,14 @@ export const Cart: React.FC<CartProps> = ({
             </span>
           </div>
         ))}
+
+        {/* Total discount row */}
+        {totalDiscountCents > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--accent-primary)", fontWeight: 600 }}>
+            <span>Discount Applied</span>
+            <span style={{ fontFamily: "var(--font-mono)" }}>- {formatCurrency(totalDiscountCents)}</span>
+          </div>
+        )}
 
         {/* Divider */}
         <div style={{ height: 1, backgroundColor: "var(--border-subtle)", margin: "2px 0" }} />

@@ -58,7 +58,8 @@ export interface CartItem {
   taxCategoryId: string | null;
   taxCategoryName: string;
   taxRateBp: number;
-  lineSubtotalCents: number;
+  discountCents: number;       // flat discount applied to this line (before tax)
+  lineSubtotalCents: number;   // (priceCents × qty) - discountCents
   lineTaxCents: number;
   lineTotalCents: number;
 }

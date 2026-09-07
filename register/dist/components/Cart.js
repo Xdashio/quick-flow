@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useEffect, useRef } from "react";
 import { formatCurrency, formatTaxRate } from "../lib/cart";
-import { IconCart, IconTrash, IconClose, IconPlus, IconMinus, IconArrowRight } from "./icons";
+import { IconCart, IconTrash, IconClose, IconArrowRight } from "./icons";
 /**
  * Inline two-step confirmation hook.
  * Returns [isPending, arm, reset].
@@ -27,8 +27,11 @@ function useConfirm(timeout = 2000) {
     return [isPending, arm, reset];
 }
 /** Per-item inline remove confirmation */
-const CartLineItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
+const CartLineItem = ({ item, onUpdateQuantity, onRemoveItem, onApplyDiscount }) => {
     const [confirmPending, armConfirm, resetConfirm] = useConfirm(2000);
+    const [discountOpen, setDiscountOpen] = useState(false);
+    const [discountInput, setDiscountInput] = useState("");
+    const [discountType, setDiscountType] = useState("flat");
     const handleRemoveClick = () => {
         if (confirmPending) {
             resetConfirm();
@@ -38,7 +41,28 @@ const CartLineItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
             armConfirm();
         }
     };
-    return (_jsxs("div", { style: {
+    const handleApplyDiscount = () => {
+        const val = parseFloat(discountInput);
+        if (isNaN(val) || val < 0)
+            return;
+        let cents;
+        if (discountType === "pct") {
+            const pct = Math.min(val, 100) / 100;
+            cents = Math.round(item.priceCents * item.quantity * pct);
+        }
+        else {
+            cents = Math.round(val * 100);
+        }
+        onApplyDiscount(item.id, cents);
+        setDiscountOpen(false);
+        setDiscountInput("");
+    };
+    const handleClearDiscount = () => {
+        onApplyDiscount(item.id, 0);
+        setDiscountOpen(false);
+        setDiscountInput("");
+    };
+    return (_jsx("div", { style: {
             padding: "12px 14px",
             borderRadius: "var(--radius-md)",
             backgroundColor: "var(--bg-surface-elevated)",
@@ -47,48 +71,31 @@ const CartLineItem = ({ item, onUpdateQuantity, onRemoveItem }) => {
             flexDirection: "column",
             gap: 8,
             transition: "border-color 0.2s ease",
-        }, children: [_jsxs("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }, children: [_jsxs("div", { style: { flex: 1 }, children: [_jsx("div", { style: { fontSize: 13, fontWeight: 600, lineHeight: 1.35 }, children: item.name }), _jsxs("div", { style: {
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: 11,
-                                    color: "var(--text-muted)",
-                                    marginTop: 2,
-                                }, children: [item.sku, " \u00B7 ", formatCurrency(item.priceCents), item.isWeighed ? ` / ${item.unitType}` : ""] })] }), _jsxs("button", { onClick: handleRemoveClick, title: confirmPending ? "Click again to confirm removal" : "Remove item", style: {
-                            display: "flex",
-                            alignItems: "center",
-                            gap: confirmPending ? 5 : 0,
-                            background: confirmPending ? "var(--accent-rose-bg)" : "none",
-                            border: confirmPending ? "1px solid var(--accent-rose-border)" : "none",
-                            borderRadius: "var(--radius-pill)",
-                            color: confirmPending ? "var(--accent-rose)" : "var(--text-muted)",
-                            cursor: "pointer",
-                            padding: confirmPending ? "3px 9px 3px 7px" : "2px",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            whiteSpace: "nowrap",
-                            transition: "all 0.18s var(--ease-spring)",
-                            flexShrink: 0,
-                        }, children: [_jsx(IconClose, { size: confirmPending ? 11 : 14 }), confirmPending && _jsx("span", { children: "Remove?" })] })] }), _jsxs("div", { style: {
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    paddingTop: 8,
-                    borderTop: "1px solid var(--border-subtle)",
-                }, children: [_jsxs("div", { className: "pos-stepper-capsule", children: [_jsx("button", { onClick: () => onUpdateQuantity(item.id, item.quantity - (item.isWeighed ? 0.25 : 1)), className: "pos-stepper-btn", children: _jsx(IconMinus, { size: 11 }) }), _jsx("span", { style: {
-                                    padding: "0 8px",
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    minWidth: 26,
-                                    textAlign: "center",
-                                }, children: item.quantity }), _jsx("button", { onClick: () => onUpdateQuantity(item.id, item.quantity + (item.isWeighed ? 0.25 : 1)), className: "pos-stepper-btn", children: _jsx(IconPlus, { size: 11 }) })] }), _jsx("div", { style: {
-                            fontFamily: "var(--font-mono)",
-                            fontWeight: 700,
-                            fontSize: 14,
-                            letterSpacing: "-0.01em",
-                        }, children: formatCurrency(item.lineTotalCents) })] })] }));
+        }, children: _jsxs("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }, children: [_jsxs("div", { style: { flex: 1 }, children: [_jsx("div", { style: { fontSize: 13, fontWeight: 600, lineHeight: 1.35 }, children: item.name }), _jsxs("div", { style: {
+                                fontFamily: "var(--font-mono)",
+                                fontSize: 11,
+                                color: "var(--text-muted)",
+                                marginTop: 2,
+                            }, children: [item.sku, " \u00B7 ", formatCurrency(item.priceCents), item.isWeighed ? ` / ${item.unitType}` : ""] })] }), _jsxs("button", { onClick: handleRemoveClick, title: confirmPending ? "Click again to confirm removal" : "Remove item", style: {
+                        display: "flex",
+                        alignItems: "center",
+                        gap: confirmPending ? 5 : 0,
+                        background: confirmPending ? "var(--accent-rose-bg)" : "none",
+                        border: confirmPending ? "1px solid var(--accent-rose-border)" : "none",
+                        borderRadius: "var(--radius-pill)",
+                        color: confirmPending ? "var(--accent-rose)" : "var(--text-muted)",
+                        cursor: "pointer",
+                        padding: confirmPending ? "3px 9px 3px 7px" : "2px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        transition: "all 0.18s var(--ease-spring)",
+                        flexShrink: 0,
+                    }, children: [_jsx(IconClose, { size: confirmPending ? 11 : 14 }), confirmPending && _jsx("span", { children: "Remove?" })] })] }) }));
 };
-export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCart, onOpenTender, onCloseMobileCart, }) => {
+export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCart, onOpenTender, onCloseMobileCart, onApplyDiscount, onHoldSale, onRestoreSale, hasHeldSale, }) => {
     const [clearPending, armClear, resetClear] = useConfirm(2500);
+    const totalDiscountCents = items.reduce((sum, i) => sum + (i.discountCents || 0), 0);
     const handleClearClick = () => {
         if (clearPending) {
             resetClear();
@@ -120,7 +127,23 @@ export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCar
                                     backgroundColor: "var(--bg-surface-subtle)",
                                     color: "var(--text-secondary)",
                                     border: "1px solid var(--border-subtle)",
-                                }, children: totals.itemCount })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [items.length > 0 && (_jsxs("button", { onClick: handleClearClick, title: clearPending ? "Click again to clear all items" : "Clear all line items", style: {
+                                }, children: totals.itemCount })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [items.length > 0 && (_jsx("button", { onClick: onHoldSale, title: "Park this sale and start a new one", style: {
+                                    display: "flex", alignItems: "center", gap: 4,
+                                    background: "none", border: "1px solid transparent",
+                                    color: "var(--text-muted)", fontSize: 12, fontWeight: 700,
+                                    cursor: "pointer", padding: "4px 10px",
+                                    borderRadius: "var(--radius-pill)",
+                                    transition: "all 0.2s var(--ease-spring)",
+                                    whiteSpace: "nowrap",
+                                }, children: "\u23F8 Hold" })), hasHeldSale && items.length === 0 && (_jsx("button", { onClick: onRestoreSale, title: "Restore held sale", style: {
+                                    display: "flex", alignItems: "center", gap: 4,
+                                    background: "var(--accent-amber-bg)",
+                                    border: "1px solid var(--accent-amber-border)",
+                                    color: "var(--accent-amber)", fontSize: 12, fontWeight: 700,
+                                    cursor: "pointer", padding: "4px 10px",
+                                    borderRadius: "var(--radius-pill)",
+                                    whiteSpace: "nowrap",
+                                }, children: "\u25B6 Restore Sale" })), items.length > 0 && (_jsxs("button", { onClick: handleClearClick, title: clearPending ? "Click again to clear all items" : "Clear all line items", style: {
                                     display: "flex",
                                     alignItems: "center",
                                     gap: 4,
@@ -166,7 +189,7 @@ export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCar
                                 justifyContent: "center",
                                 marginBottom: 12,
                                 color: "var(--text-muted)",
-                            }, children: _jsx(IconCart, { size: 20 }) }), _jsx("div", { style: { fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }, children: "Cart is empty" }), _jsx("div", { style: { fontSize: 12, marginTop: 4, lineHeight: 1.45, maxWidth: 220 }, children: "Scan an item barcode or select products from the catalog to build this sale." })] })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: 10 }, children: items.map((item) => (_jsx(CartLineItem, { item: item, onUpdateQuantity: onUpdateQuantity, onRemoveItem: onRemoveItem }, item.id))) })) }), _jsxs("div", { style: {
+                            }, children: _jsx(IconCart, { size: 20 }) }), _jsx("div", { style: { fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }, children: "Cart is empty" }), _jsx("div", { style: { fontSize: 12, marginTop: 4, lineHeight: 1.45, maxWidth: 220 }, children: "Scan an item barcode or select products from the catalog to build this sale." })] })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: 10 }, children: items.map((item) => (_jsx(CartLineItem, { item: item, onUpdateQuantity: onUpdateQuantity, onRemoveItem: onRemoveItem, onApplyDiscount: onApplyDiscount }, item.id))) })) }), _jsxs("div", { style: {
                     padding: "16px 20px",
                     borderTop: "1px solid var(--border-subtle)",
                     backgroundColor: "var(--bg-surface-elevated)",
@@ -179,7 +202,7 @@ export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCar
                             fontSize: 12,
                             color: "var(--text-muted)",
                             paddingLeft: 6,
-                        }, children: [_jsxs("span", { children: [tg.name, " (", formatTaxRate(tg.rateBp), ")"] }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(tg.taxCents) })] }, tg.taxCategoryId))), _jsx("div", { style: { height: 1, backgroundColor: "var(--border-subtle)", margin: "2px 0" } }), _jsxs("div", { style: {
+                        }, children: [_jsxs("span", { children: [tg.name, " (", formatTaxRate(tg.rateBp), ")"] }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(tg.taxCents) })] }, tg.taxCategoryId))), totalDiscountCents > 0 && (_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--accent-primary)", fontWeight: 600 }, children: [_jsx("span", { children: "Discount Applied" }), _jsxs("span", { style: { fontFamily: "var(--font-mono)" }, children: ["- ", formatCurrency(totalDiscountCents)] })] })), _jsx("div", { style: { height: 1, backgroundColor: "var(--border-subtle)", margin: "2px 0" } }), _jsxs("div", { style: {
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "baseline",

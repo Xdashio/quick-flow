@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { posApi } from "./lib/api";
 import type { CachedCategory, CachedProduct, CartItem, SyncStatus } from "./lib/types";
-import { createCartItem, updateItemQuantity, calculateCartTotals, formatCurrency } from "./lib/cart";
+import { createCartItem, updateItemQuantity, applyDiscount, calculateCartTotals, formatCurrency } from "./lib/cart";
 import { Header } from "./components/Header";
 import { ProductCatalog } from "./components/ProductCatalog";
 import { Cart } from "./components/Cart";
@@ -36,6 +36,9 @@ export default function App() {
   const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [lastSale, setLastSale] = useState<any>(null);
+  const [hasHeldSale, setHasHeldSale] = useState<boolean>(() => {
+    try { return Boolean(localStorage.getItem("pos-held-cart")); } catch { return false; }
+  });
   // Auto-lock idle timeout (ms) — 5 minutes
   const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,6 +236,36 @@ export default function App() {
     posApi.getSyncStatus().then(setSyncStatus).catch(() => {});
   };
 
+  const handleApplyDiscount = (id: string, discountCents: number) => {
+    setCartItems((prev) =>
+      prev.map((item) => (item.id === id ? applyDiscount(item, discountCents) : item))
+    );
+  };
+
+  const handleHoldSale = () => {
+    if (cartItems.length === 0) return;
+    try {
+      localStorage.setItem("pos-held-cart", JSON.stringify(cartItems));
+      setHasHeldSale(true);
+      setCartItems([]);
+    } catch (e) {
+      console.error("[App] Failed to hold sale:", e);
+    }
+  };
+
+  const handleRestoreSale = () => {
+    try {
+      const raw = localStorage.getItem("pos-held-cart");
+      if (!raw) return;
+      const held: CartItem[] = JSON.parse(raw);
+      setCartItems(held);
+      localStorage.removeItem("pos-held-cart");
+      setHasHeldSale(false);
+    } catch (e) {
+      console.error("[App] Failed to restore held sale:", e);
+    }
+  };
+
   const handleLogout = () => {
     setAuthenticatedUser(null);
     localStorage.removeItem("pos-user");
@@ -335,6 +368,10 @@ export default function App() {
             onClearCart={handleClearCart}
             onOpenTender={() => setIsTenderModalOpen(true)}
             onCloseMobileCart={() => setIsMobileCartOpen(false)}
+            onApplyDiscount={handleApplyDiscount}
+            onHoldSale={handleHoldSale}
+            onRestoreSale={handleRestoreSale}
+            hasHeldSale={hasHeldSale}
           />
         </div>
       </div>

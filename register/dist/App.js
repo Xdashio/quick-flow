@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { posApi } from "./lib/api";
-import { createCartItem, updateItemQuantity, calculateCartTotals, formatCurrency } from "./lib/cart";
+import { createCartItem, updateItemQuantity, applyDiscount, calculateCartTotals, formatCurrency } from "./lib/cart";
 import { Header } from "./components/Header";
 import { ProductCatalog } from "./components/ProductCatalog";
 import { Cart } from "./components/Cart";
@@ -31,6 +31,14 @@ export default function App() {
     const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [lastSale, setLastSale] = useState(null);
+    const [hasHeldSale, setHasHeldSale] = useState(() => {
+        try {
+            return Boolean(localStorage.getItem("pos-held-cart"));
+        }
+        catch {
+            return false;
+        }
+    });
     // Auto-lock idle timeout (ms) — 5 minutes
     const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
     const idleTimerRef = useRef(null);
@@ -201,6 +209,35 @@ export default function App() {
         // Refresh sync status to show pendingCount update
         posApi.getSyncStatus().then(setSyncStatus).catch(() => { });
     };
+    const handleApplyDiscount = (id, discountCents) => {
+        setCartItems((prev) => prev.map((item) => (item.id === id ? applyDiscount(item, discountCents) : item)));
+    };
+    const handleHoldSale = () => {
+        if (cartItems.length === 0)
+            return;
+        try {
+            localStorage.setItem("pos-held-cart", JSON.stringify(cartItems));
+            setHasHeldSale(true);
+            setCartItems([]);
+        }
+        catch (e) {
+            console.error("[App] Failed to hold sale:", e);
+        }
+    };
+    const handleRestoreSale = () => {
+        try {
+            const raw = localStorage.getItem("pos-held-cart");
+            if (!raw)
+                return;
+            const held = JSON.parse(raw);
+            setCartItems(held);
+            localStorage.removeItem("pos-held-cart");
+            setHasHeldSale(false);
+        }
+        catch (e) {
+            console.error("[App] Failed to restore held sale:", e);
+        }
+    };
     const handleLogout = () => {
         setAuthenticatedUser(null);
         localStorage.removeItem("pos-user");
@@ -229,7 +266,7 @@ export default function App() {
                                     color: "var(--bg-app)",
                                 }, children: _jsx(IconCheck, { size: 15 }) }), _jsxs("div", { children: [_jsxs("div", { style: { fontWeight: 700, fontSize: 13.5 }, children: ["Sale complete \u00B7 ", formatCurrency(lastSale.totalCents ?? 0), lastSale.changeDueCents ? ` · Change due ${formatCurrency(lastSale.changeDueCents)}` : ""] }), _jsx("div", { style: { fontSize: 11.5, color: "var(--text-secondary)", marginTop: 1 }, children: lastSale.offline
                                             ? "Saved on this till — will sync automatically once back online."
-                                            : "Synced to the server." })] })] }), _jsx("button", { onClick: () => setLastSale(null), style: { background: "none", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-pill)", padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }, children: "Dismiss" })] })), _jsxs("div", { className: "pos-main-container", children: [_jsx("main", { className: "pos-catalog-pane", children: _jsx(ProductCatalog, { products: products, categories: categories, cartQuantityByProductId: cartQuantityByProductId, onAddToCart: handleAddToCart, onBarcodeSubmit: handleBarcodeSubmit, isLoading: isLoadingProducts }) }), _jsx("div", { className: `pos-cart-pane ${isMobileCartOpen ? "mobile-open" : ""}`, children: _jsx(Cart, { items: cartItems, totals: totals, onUpdateQuantity: handleUpdateQuantity, onRemoveItem: handleRemoveItem, onClearCart: handleClearCart, onOpenTender: () => setIsTenderModalOpen(true), onCloseMobileCart: () => setIsMobileCartOpen(false) }) })] }), cartItems.length > 0 && (_jsxs("div", { className: "pos-mobile-cart-bar", children: [_jsxs("div", { style: { display: "flex", alignItems: "center", gap: 10 }, children: [_jsx("div", { style: {
+                                            : "Synced to the server." })] })] }), _jsx("button", { onClick: () => setLastSale(null), style: { background: "none", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-pill)", padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }, children: "Dismiss" })] })), _jsxs("div", { className: "pos-main-container", children: [_jsx("main", { className: "pos-catalog-pane", children: _jsx(ProductCatalog, { products: products, categories: categories, cartQuantityByProductId: cartQuantityByProductId, onAddToCart: handleAddToCart, onBarcodeSubmit: handleBarcodeSubmit, isLoading: isLoadingProducts }) }), _jsx("div", { className: `pos-cart-pane ${isMobileCartOpen ? "mobile-open" : ""}`, children: _jsx(Cart, { items: cartItems, totals: totals, onUpdateQuantity: handleUpdateQuantity, onRemoveItem: handleRemoveItem, onClearCart: handleClearCart, onOpenTender: () => setIsTenderModalOpen(true), onCloseMobileCart: () => setIsMobileCartOpen(false), onApplyDiscount: handleApplyDiscount, onHoldSale: handleHoldSale, onRestoreSale: handleRestoreSale, hasHeldSale: hasHeldSale }) })] }), cartItems.length > 0 && (_jsxs("div", { className: "pos-mobile-cart-bar", children: [_jsxs("div", { style: { display: "flex", alignItems: "center", gap: 10 }, children: [_jsx("div", { style: {
                                     width: 36,
                                     height: 36,
                                     borderRadius: "var(--radius-sm)",

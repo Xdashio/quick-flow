@@ -37,7 +37,7 @@ export function buildCashSalePayload(items, totals, amountTenderedCents, opts = 
             quantity: item.quantity,
             unitPriceCents: item.priceCents,
             taxRateBp: item.taxRateBp,
-            discountCents: 0,
+            discountCents: item.discountCents ?? 0,
             lineTotalCents: item.lineTotalCents,
         })),
         amountTenderedCents,
