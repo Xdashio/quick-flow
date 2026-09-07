@@ -91,10 +91,23 @@ export const ProductCatalog = ({ products, categories = [], cartQuantityByProduc
     const [selectedFilter, setSelectedFilter] = useState("all");
     const [selectedCategoryId, setSelectedCategoryId] = useState("all");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [lowStockMap, setLowStockMap] = useState({});
     const searchInputRef = useRef(null);
     const filterRef = useRef(null);
     useEffect(() => {
         searchInputRef.current?.focus();
+    }, []);
+    // Fetch low-stock data once on mount; refresh every 90s
+    useEffect(() => {
+        let alive = true;
+        const load = async () => {
+            const map = await posApi.getLowStock();
+            if (alive)
+                setLowStockMap(map);
+        };
+        load();
+        const timer = setInterval(load, 90_000);
+        return () => { alive = false; clearInterval(timer); };
     }, []);
     // Close the filter popover on outside click, same pattern as the header
     // overflow menu.
@@ -281,12 +294,28 @@ export const ProductCatalog = ({ products, categories = [], cartQuantityByProduc
                         const isStandardTax = taxRate >= 1600;
                         const qtyInCart = cartQuantityByProductId[p.id] ?? 0;
                         const accentColor = getProductColor(p);
-                        return (_jsxs("div", { onClick: () => onAddToCart(p), onKeyDown: (e) => {
-                                if (e.key === "Enter" || e.key === " ") {
+                        // Stock level: undefined = not tracked, 0 = out of stock, >0 = low stock
+                        const stockQty = lowStockMap[p.id];
+                        const isOutOfStock = stockQty !== undefined && stockQty <= 0;
+                        const isLowStock = stockQty !== undefined && stockQty > 0;
+                        return (_jsxs("div", { onClick: () => !isOutOfStock && onAddToCart(p), onKeyDown: (e) => {
+                                if ((e.key === "Enter" || e.key === " ") && !isOutOfStock) {
                                     e.preventDefault();
                                     onAddToCart(p);
                                 }
-                            }, role: "button", tabIndex: 0, "aria-label": `Add ${p.name}, ${formatCurrency(p.price_cents)}`, className: "pos-product-card-shell", children: [qtyInCart > 0 && (_jsx("span", { className: "pos-card-qty-flag", "aria-hidden": "true", children: qtyInCart })), _jsxs("div", { className: "pos-product-card-inner", children: [_jsxs("div", { style: { marginBottom: 12, flex: 1 }, children: [_jsx(ProductImage, { product: p, accentColor: accentColor }), _jsx("h4", { style: {
+                            }, role: "button", tabIndex: 0, "aria-label": `Add ${p.name}, ${formatCurrency(p.price_cents)}${isOutOfStock ? " — Out of stock" : isLowStock ? ` — Low stock: ${stockQty} left` : ""}`, className: "pos-product-card-shell", style: { opacity: isOutOfStock ? 0.5 : 1, cursor: isOutOfStock ? "not-allowed" : "pointer" }, children: [qtyInCart > 0 && (_jsx("span", { className: "pos-card-qty-flag", "aria-hidden": "true", children: qtyInCart })), isOutOfStock && (_jsx("span", { style: {
+                                        position: "absolute", top: 8, left: 8, zIndex: 2,
+                                        fontSize: 9, fontWeight: 800, letterSpacing: "0.06em",
+                                        textTransform: "uppercase",
+                                        padding: "2px 7px", borderRadius: "var(--radius-pill)",
+                                        backgroundColor: "var(--accent-rose)", color: "#fff",
+                                    }, children: "Out of Stock" })), isLowStock && (_jsxs("span", { style: {
+                                        position: "absolute", top: 8, left: 8, zIndex: 2,
+                                        fontSize: 9, fontWeight: 800, letterSpacing: "0.06em",
+                                        textTransform: "uppercase",
+                                        padding: "2px 7px", borderRadius: "var(--radius-pill)",
+                                        backgroundColor: "var(--accent-amber)", color: "#fff",
+                                    }, children: ["Low: ", stockQty] })), _jsxs("div", { className: "pos-product-card-inner", children: [_jsxs("div", { style: { marginBottom: 12, flex: 1 }, children: [_jsx(ProductImage, { product: p, accentColor: accentColor }), _jsx("h4", { style: {
                                                         fontSize: 13.5,
                                                         fontWeight: 700,
                                                         lineHeight: 1.35,

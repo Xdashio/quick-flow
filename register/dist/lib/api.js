@@ -241,6 +241,26 @@ export const posApi = {
         const raw = await res.json();
         return (Array.isArray(raw) ? raw : []).map(mapBackendCategoryToCached);
     },
+    /** Returns a map of productId → quantityOnHand for low/out-of-stock items */
+    async getLowStock() {
+        try {
+            const res = await apiFetch("/inventory/low-stock", { timeoutMs: 5000 });
+            const raw = await res.json();
+            const map = {};
+            if (Array.isArray(raw)) {
+                for (const entry of raw) {
+                    const productId = entry.productId ?? entry.product_id ?? entry.id;
+                    const qty = entry.quantityOnHand ?? entry.quantity_on_hand ?? entry.quantity ?? 0;
+                    if (productId)
+                        map[productId] = Number(qty);
+                }
+            }
+            return map;
+        }
+        catch {
+            return {};
+        }
+    },
     async getSyncStatus() {
         if (window.posApi) {
             return window.posApi.getSyncStatus();

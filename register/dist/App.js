@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { posApi } from "./lib/api";
 import { createCartItem, updateItemQuantity, calculateCartTotals, formatCurrency } from "./lib/cart";
 import { Header } from "./components/Header";
@@ -31,6 +31,42 @@ export default function App() {
     const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [lastSale, setLastSale] = useState(null);
+    // Auto-lock idle timeout (ms) — 5 minutes
+    const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+    const idleTimerRef = useRef(null);
+    // ── Auto-lock idle timer ───────────────────────────────────────────────────
+    // Resets on any user interaction. Logs out after IDLE_TIMEOUT_MS of silence.
+    // The timer is only active while a user is authenticated.
+    useEffect(() => {
+        if (!authenticatedUser)
+            return;
+        const resetTimer = () => {
+            if (idleTimerRef.current)
+                clearTimeout(idleTimerRef.current);
+            idleTimerRef.current = setTimeout(() => {
+                handleLogout();
+            }, IDLE_TIMEOUT_MS);
+        };
+        const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+        events.forEach((ev) => window.addEventListener(ev, resetTimer, { passive: true }));
+        resetTimer(); // arm immediately
+        return () => {
+            events.forEach((ev) => window.removeEventListener(ev, resetTimer));
+            if (idleTimerRef.current)
+                clearTimeout(idleTimerRef.current);
+        };
+    }, [authenticatedUser]);
+    // ── F12 shortcut: open tender when cart has items ─────────────────────────
+    useEffect(() => {
+        const handleKey = (e) => {
+            if (e.key === "F12" && cartItems.length > 0 && !isTenderModalOpen) {
+                e.preventDefault();
+                setIsTenderModalOpen(true);
+            }
+        };
+        window.addEventListener("keydown", handleKey);
+        return () => window.removeEventListener("keydown", handleKey);
+    }, [cartItems.length, isTenderModalOpen]);
     // Load products from local SQLite cache
     const loadProducts = useCallback(async () => {
         try {

@@ -138,11 +138,24 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [lowStockMap, setLowStockMap] = useState<Record<string, number>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     searchInputRef.current?.focus();
+  }, []);
+
+  // Fetch low-stock data once on mount; refresh every 90s
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const map = await posApi.getLowStock();
+      if (alive) setLowStockMap(map);
+    };
+    load();
+    const timer = setInterval(load, 90_000);
+    return () => { alive = false; clearInterval(timer); };
   }, []);
 
   // Close the filter popover on outside click, same pattern as the header
@@ -477,34 +490,54 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               const isStandardTax = taxRate >= 1600;
               const qtyInCart = cartQuantityByProductId[p.id] ?? 0;
               const accentColor = getProductColor(p);
+              // Stock level: undefined = not tracked, 0 = out of stock, >0 = low stock
+              const stockQty = lowStockMap[p.id];
+              const isOutOfStock = stockQty !== undefined && stockQty <= 0;
+              const isLowStock = stockQty !== undefined && stockQty > 0;
 
               return (
                 <div
                   key={p.id}
-                  onClick={() => onAddToCart(p)}
+                  onClick={() => !isOutOfStock && onAddToCart(p)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
+                    if ((e.key === "Enter" || e.key === " ") && !isOutOfStock) {
                       e.preventDefault();
                       onAddToCart(p);
                     }
                   }}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Add ${p.name}, ${formatCurrency(p.price_cents)}`}
+                  aria-label={`Add ${p.name}, ${formatCurrency(p.price_cents)}${
+                    isOutOfStock ? " — Out of stock" : isLowStock ? ` — Low stock: ${stockQty} left` : ""
+                  }`}
                   className="pos-product-card-shell"
+                  style={{ opacity: isOutOfStock ? 0.5 : 1, cursor: isOutOfStock ? "not-allowed" : "pointer" }}
                 >
                   {qtyInCart > 0 && (
                     <span className="pos-card-qty-flag" aria-hidden="true">
                       {qtyInCart}
                     </span>
                   )}
+                  {/* Stock badges */}
+                  {isOutOfStock && (
+                    <span style={{
+                      position: "absolute", top: 8, left: 8, zIndex: 2,
+                      fontSize: 9, fontWeight: 800, letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      padding: "2px 7px", borderRadius: "var(--radius-pill)",
+                      backgroundColor: "var(--accent-rose)", color: "#fff",
+                    }}>Out of Stock</span>
+                  )}
+                  {isLowStock && (
+                    <span style={{
+                      position: "absolute", top: 8, left: 8, zIndex: 2,
+                      fontSize: 9, fontWeight: 800, letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      padding: "2px 7px", borderRadius: "var(--radius-pill)",
+                      backgroundColor: "var(--accent-amber)", color: "#fff",
+                    }}>Low: {stockQty}</span>
+                  )}
                   <div className="pos-product-card-inner">
-                    {/* Image / placeholder carries the category color edge,
-                        so the tax badge row that used to sit on top of every
-                        card (reading before tapping) is gone — that
-                        compliance detail now lives in a small dot next to
-                        the price, available on demand rather than forced
-                        on every glance. */}
                     <div style={{ marginBottom: 12, flex: 1 }}>
                       <ProductImage product={p} accentColor={accentColor} />
                       <h4
@@ -556,10 +589,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
                     </div>
 
-                    {/* Bottom: Price, with a small tax-rate dot instead of a
-                        full badge — the compliance detail is one glance
-                        away (title tooltip) without demanding a read on
-                        every single tap. */}
                     <div
                       style={{
                         display: "flex",
