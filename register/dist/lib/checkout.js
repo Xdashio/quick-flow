@@ -34,7 +34,6 @@ export function buildCashSalePayload(items, totals, amountTenderedCents, opts = 
         totalCents: totals.grandTotalCents,
         lineItems: items.map((item) => ({
             productId: item.productId,
-            name: item.name,
             quantity: item.quantity,
             unitPriceCents: item.priceCents,
             taxRateBp: item.taxRateBp,

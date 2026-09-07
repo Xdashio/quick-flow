@@ -15,7 +15,6 @@ export interface CashSalePayload {
   totalCents: number;
   lineItems: Array<{
     productId: string;
-    name?: string;
     quantity: number;
     unitPriceCents: number;
     taxRateBp: number;
@@ -68,7 +67,6 @@ export function buildCashSalePayload(
     totalCents: totals.grandTotalCents,
     lineItems: items.map((item) => ({
       productId: item.productId,
-      name: item.name,
       quantity: item.quantity,
       unitPriceCents: item.priceCents,
       taxRateBp: item.taxRateBp,
