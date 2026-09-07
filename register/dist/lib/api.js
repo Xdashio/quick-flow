@@ -90,11 +90,18 @@ export async function apiFetch(path, init = {}) {
         const bodyText = await res.text().catch(() => "");
         let message = `HTTP ${res.status}`;
         try {
-            message = JSON.parse(bodyText).message || message;
+            const parsed = JSON.parse(bodyText);
+            if (Array.isArray(parsed.message)) {
+                message = parsed.message.join("; ");
+            }
+            else if (typeof parsed.message === "string") {
+                message = parsed.message;
+            }
         }
         catch {
-            if (bodyText && !bodyText.startsWith("<"))
+            if (bodyText && typeof bodyText === "string" && !bodyText.startsWith("<")) {
                 message = bodyText.slice(0, 200);
+            }
         }
         // A WAF/bot-protection layer (e.g. Imunify360 on shared hosting) can
         // answer API clients with 403 + a JSON "access denied" page. That is the
@@ -108,8 +115,12 @@ export async function apiFetch(path, init = {}) {
         // remember it so subsequent calls don't re-probe dead candidates first.
         if (isJsonApi)
             activeApiUrl = base;
-        if (errorPrefix && !message.startsWith(errorPrefix)) {
-            message = `${errorPrefix}: ${message}`;
+        const strMessage = String(message || `HTTP ${res.status}`);
+        if (errorPrefix && !strMessage.startsWith(errorPrefix)) {
+            message = `${errorPrefix}: ${strMessage}`;
+        }
+        else {
+            message = strMessage;
         }
         if (res.status >= 500) {
             unreachable.push(`${base}: ${message}`);

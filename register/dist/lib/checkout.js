@@ -12,11 +12,23 @@ export function buildCashSalePayload(items, totals, amountTenderedCents, opts = 
     if (amountTenderedCents < totals.grandTotalCents) {
         throw new Error(`Insufficient tendered: ${amountTenderedCents} < ${totals.grandTotalCents}`);
     }
+    let activeCashierId = opts.cashierId;
+    if (!activeCashierId && typeof window !== "undefined") {
+        try {
+            const savedUser = localStorage.getItem("pos-user");
+            if (savedUser) {
+                const u = JSON.parse(savedUser);
+                if (u && u.id)
+                    activeCashierId = u.id;
+            }
+        }
+        catch { }
+    }
     return {
         id,
         locationId: opts.locationId || DEFAULT_LOCATION_ID,
         registerId: opts.registerId || DEFAULT_REGISTER_ID,
-        cashierId: opts.cashierId || DEFAULT_CASHIER_ID,
+        cashierId: activeCashierId || DEFAULT_CASHIER_ID,
         subtotalCents: totals.subtotalCents,
         taxCents: totals.totalTaxCents,
         totalCents: totals.grandTotalCents,

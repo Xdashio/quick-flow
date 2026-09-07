@@ -34,4 +34,5 @@ virtual-printer
 venv
 skills-lock.json
 dashboard/next-env.d.ts
+backend/tmp/
 
