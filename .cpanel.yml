@@ -1,5 +1,8 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/bin/echo
-    - /bin/echo "quick-flow repo ready for Node.js App"
+    - export DEPLOYPATH=/home/$USER/public_html/register
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -R register/dist/renderer/* $DEPLOYPATH/
+    - /bin/cp register/dist/renderer/.htaccess $DEPLOYPATH/
+
