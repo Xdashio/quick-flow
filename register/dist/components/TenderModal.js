@@ -564,11 +564,11 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                 fontWeight: 600,
                                 cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
                                 opacity: stkPending || isProcessing ? 0.6 : 1,
-                            }, children: "Cancel" }), paymentMethod === "cash" && (_jsx("button", { onClick: handleCashConfirm, disabled: isProcessing || !isExactOrMore || isZeroItems, className: "pos-btn-pill pos-btn-pill-primary", style: {
+                            }, children: "Cancel" }), paymentMethod === "cash" && (_jsx("button", { onClick: isSuccess ? onClose : handleCashConfirm, disabled: isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems)), className: "pos-btn-pill pos-btn-pill-primary", style: {
                                 padding: "10px 24px",
                                 backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
-                                opacity: (isProcessing || !isExactOrMore || isZeroItems) ? 0.5 : 1,
-                                cursor: (isProcessing || !isExactOrMore || isZeroItems) ? "not-allowed" : "pointer",
+                                opacity: (isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems))) ? 0.5 : 1,
+                                cursor: (isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems))) ? "not-allowed" : "pointer",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 8,
@@ -584,11 +584,11 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                 gap: 8,
                                 fontSize: 13,
                                 fontWeight: 700,
-                            }, children: isProcessing ? _jsx("span", { children: "Sending..." }) : _jsx("span", { children: "Send STK Push" }) })), paymentMethod === "mpesa_till" && (_jsx("button", { onClick: handleTillConfirm, disabled: isProcessing || isZeroItems || mpesaTillCode.trim().length < 8, className: "pos-btn-pill pos-btn-pill-primary", style: {
+                            }, children: isProcessing ? _jsx("span", { children: "Sending..." }) : _jsx("span", { children: "Send STK Push" }) })), paymentMethod === "mpesa_till" && (_jsx("button", { onClick: isSuccess ? onClose : handleTillConfirm, disabled: isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8)), className: "pos-btn-pill pos-btn-pill-primary", style: {
                                 padding: "10px 24px",
                                 backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
-                                opacity: (isProcessing || isZeroItems || mpesaTillCode.trim().length < 8) ? 0.5 : 1,
-                                cursor: (isProcessing || isZeroItems || mpesaTillCode.trim().length < 8) ? "not-allowed" : "pointer",
+                                opacity: (isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8))) ? 0.5 : 1,
+                                cursor: (isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8))) ? "not-allowed" : "pointer",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 8,

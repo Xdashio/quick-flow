@@ -912,14 +912,14 @@ setIsProcessing(true);
 
           {paymentMethod === "cash" && (
             <button
-              onClick={handleCashConfirm}
-              disabled={isProcessing || !isExactOrMore || isZeroItems}
+              onClick={isSuccess ? onClose : handleCashConfirm}
+              disabled={isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems))}
               className="pos-btn-pill pos-btn-pill-primary"
               style={{
                 padding: "10px 24px",
                 backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
-                opacity: (isProcessing || !isExactOrMore || isZeroItems) ? 0.5 : 1,
-                cursor: (isProcessing || !isExactOrMore || isZeroItems) ? "not-allowed" : "pointer",
+                opacity: (isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems))) ? 0.5 : 1,
+                cursor: (isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems))) ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
@@ -963,14 +963,14 @@ setIsProcessing(true);
 
           {paymentMethod === "mpesa_till" && (
             <button
-              onClick={handleTillConfirm}
-              disabled={isProcessing || isZeroItems || mpesaTillCode.trim().length < 8}
+              onClick={isSuccess ? onClose : handleTillConfirm}
+              disabled={isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8))}
               className="pos-btn-pill pos-btn-pill-primary"
               style={{
                 padding: "10px 24px",
                 backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
-                opacity: (isProcessing || isZeroItems || mpesaTillCode.trim().length < 8) ? 0.5 : 1,
-                cursor: (isProcessing || isZeroItems || mpesaTillCode.trim().length < 8) ? "not-allowed" : "pointer",
+                opacity: (isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8))) ? 0.5 : 1,
+                cursor: (isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8))) ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
