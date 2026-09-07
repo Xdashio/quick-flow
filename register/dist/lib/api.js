@@ -58,15 +58,31 @@ export async function getApiUrlCandidates() {
  *   the backend was reached and refused, failing over wouldn't help.
  * - 5xx may be a half-dead deploy, so those do fail over.
  */
+/** Read the JWT stored at login — injected as Bearer on every API call */
+function getStoredAuthToken() {
+    try {
+        const stored = localStorage.getItem("pos-user");
+        if (!stored)
+            return null;
+        const u = JSON.parse(stored);
+        return u?.token ?? null;
+    }
+    catch {
+        return null;
+    }
+}
 export async function apiFetch(path, init = {}) {
     const { timeoutMs = 8000, errorPrefix, ...fetchInit } = init;
     const candidates = await getApiUrlCandidates();
     const unreachable = [];
+    // Build auth header if a token is stored
+    const token = getStoredAuthToken();
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     for (const base of candidates) {
         let res;
         try {
             res = await fetch(`${base}${path}`, {
-                headers: { Accept: "application/json", ...(fetchInit.headers || {}) },
+                headers: { Accept: "application/json", ...authHeader, ...(fetchInit.headers || {}) },
                 ...fetchInit,
                 signal: AbortSignal.timeout(timeoutMs),
             });

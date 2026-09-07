@@ -121,21 +121,17 @@ export const TenderModal: React.FC<TenderModalProps> = ({
     }
 
 setIsProcessing(true);
-      setErrorMsg(null);
-      try {
-        const result = await completeCashSale(items, totals, cashTenderedCents);
-        setIsSuccess(true);
-        setLastReceipt(result.receipt);
-        setTimeout(() => {
-          setIsSuccess(false);
-          onCompleteSale(result);
-          onClose();
-        }, 8000);
-      } catch (err: any) {
-        setErrorMsg(err.message || String(err));
-      } finally {
-        setIsProcessing(false);
-      }
+    setErrorMsg(null);
+    try {
+      const result = await completeCashSale(items, totals, cashTenderedCents);
+      setIsSuccess(true);
+      setLastReceipt(result);
+      onCompleteSale(result);
+    } catch (err: any) {
+      setErrorMsg(err.message || String(err));
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // ─── M-Pesa STK Push Execution ───────────────────────────────────────────
@@ -195,18 +191,17 @@ setIsProcessing(true);
       }
 
       if (pollResult.status === "captured") {
+        setStkPending(false);
         setIsSuccess(true);
         setLastReceipt(pollResult.receipt);
-        setStkPending(false);
+        onCompleteSale({
+          transaction: pollResult.payment?.transaction,
+          payment: pollResult.payment,
+          receipt: pollResult.receipt,
+        });
         setTimeout(() => {
-          setIsSuccess(false);
-          onCompleteSale({
-            transaction: pollResult.payment?.transaction,
-            payment: pollResult.payment,
-            receipt: pollResult.receipt,
-          });
-          onClose();
-        }, 1100);
+          // brief pause so cashier can see success state before Done button closes
+        }, 3000);
       } else if (pollResult.status === "failed") {
         setStkPending(false);
         setErrorMsg("Customer cancelled or payment failed on phone");
@@ -250,12 +245,8 @@ setIsProcessing(true);
     try {
       const result = await completeMpesaTillSale(items, totals, code);
       setIsSuccess(true);
-      setLastReceipt(result.receipt);
-      setTimeout(() => {
-        setIsSuccess(false);
-        onCompleteSale(result);
-        onClose();
-      }, 1100);
+      setLastReceipt(result);
+      onCompleteSale(result);
     } catch (err: any) {
       setErrorMsg(err.message || "Failed to record Till payment");
     } finally {
@@ -833,7 +824,7 @@ setIsProcessing(true);
             </div>
           )}
 
-          {/* Error / Success Feedback */}
+          {/* Error Feedback */}
           {errorMsg && (
             <div
               style={{
@@ -851,32 +842,112 @@ setIsProcessing(true);
             </div>
           )}
 
+          {/* ─── On-Screen Digital Receipt ─────────────────────────────── */}
           {isSuccess && (
             <div
               style={{
-                padding: "10px 14px",
-                borderRadius: "var(--radius-md)",
-                backgroundColor: "var(--accent-sage-bg)",
+                borderRadius: "var(--radius-lg)",
                 border: "1px solid var(--accent-sage-border)",
-                color: "var(--accent-sage)",
-                fontSize: 12,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
+                backgroundColor: "var(--bg-surface-elevated)",
+                overflow: "hidden",
               }}
             >
-              <IconCheck size={16} /> Sale completed successfully
-            </div>
-          )}
+              {/* Receipt Header */}
+              <div
+                style={{
+                  backgroundColor: "var(--accent-sage)",
+                  color: "var(--bg-app)",
+                  textAlign: "center",
+                  padding: "14px 16px 12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 2 }}>
+                  <IconCheck size={16} />
+                  <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: "0.01em" }}>Sale Complete</span>
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.85 }}>
+                  {new Date().toLocaleString("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "medium", timeStyle: "short" })}
+                </div>
+              </div>
 
-          {lastReceipt && lastReceipt.textPreview && (
-            <details style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              <summary style={{ cursor: "pointer", fontWeight: 600 }}>Last receipt preview</summary>
-              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: 10, backgroundColor: "var(--bg-surface-elevated)", padding: 12, borderRadius: 8, marginTop: 8, maxHeight: 200, overflowY: "auto", border: "1px solid var(--border-subtle)" }}>
-                {lastReceipt.textPreview || lastReceipt.virtualParsed || "—"}
-              </pre>
-            </details>
+              {/* Line Items */}
+              <div style={{ padding: "12px 16px", borderBottom: "1px dashed var(--border-subtle)" }}>
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      gap: 8,
+                      fontSize: 12,
+                      padding: "3px 0",
+                    }}
+                  >
+                    <span style={{ flex: 1, color: "var(--text-primary)", fontWeight: 500 }}>
+                      {item.name}
+                      {item.quantity > 1 && (
+                        <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> ×{item.quantity}</span>
+                      )}
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }}>
+                      {formatCurrency(item.lineTotalCents)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Totals */}
+              <div style={{ padding: "10px 16px", borderBottom: "1px dashed var(--border-subtle)", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }}>
+                  <span>Subtotal</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(totals.subtotalCents)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }}>
+                  <span>VAT</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(totals.totalTaxCents)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }}>
+                  <span>Total</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(totals.grandTotalCents)}</span>
+                </div>
+              </div>
+
+              {/* Payment Row */}
+              <div style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
+                {paymentMethod === "cash" && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
+                      <span>Cash Tendered</span>
+                      <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(cashTenderedCents)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "var(--accent-sage)" }}>
+                      <span>Change Due</span>
+                      <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(changeDueCents)}</span>
+                    </div>
+                  </>
+                )}
+                {paymentMethod === "mpesa_stk" && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
+                    <span>M-Pesa STK — {phoneNumber}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }}>{formatCurrency(totals.grandTotalCents)}</span>
+                  </div>
+                )}
+                {paymentMethod === "mpesa_till" && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
+                      <span>M-Pesa Till {TILL_NUMBER}</span>
+                      <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }}>{formatCurrency(totals.grandTotalCents)}</span>
+                    </div>
+                    {mpesaTillCode && (
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                        Ref: {mpesaTillCode}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

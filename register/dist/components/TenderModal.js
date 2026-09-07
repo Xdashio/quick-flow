@@ -95,12 +95,8 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
         try {
             const result = await completeCashSale(items, totals, cashTenderedCents);
             setIsSuccess(true);
-            setLastReceipt(result.receipt);
-            setTimeout(() => {
-                setIsSuccess(false);
-                onCompleteSale(result);
-                onClose();
-            }, 8000);
+            setLastReceipt(result);
+            onCompleteSale(result);
         }
         catch (err) {
             setErrorMsg(err.message || String(err));
@@ -156,18 +152,17 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                 return;
             }
             if (pollResult.status === "captured") {
+                setStkPending(false);
                 setIsSuccess(true);
                 setLastReceipt(pollResult.receipt);
-                setStkPending(false);
+                onCompleteSale({
+                    transaction: pollResult.payment?.transaction,
+                    payment: pollResult.payment,
+                    receipt: pollResult.receipt,
+                });
                 setTimeout(() => {
-                    setIsSuccess(false);
-                    onCompleteSale({
-                        transaction: pollResult.payment?.transaction,
-                        payment: pollResult.payment,
-                        receipt: pollResult.receipt,
-                    });
-                    onClose();
-                }, 1100);
+                    // brief pause so cashier can see success state before Done button closes
+                }, 3000);
             }
             else if (pollResult.status === "failed") {
                 setStkPending(false);
@@ -212,12 +207,8 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
         try {
             const result = await completeMpesaTillSale(items, totals, code);
             setIsSuccess(true);
-            setLastReceipt(result.receipt);
-            setTimeout(() => {
-                setIsSuccess(false);
-                onCompleteSale(result);
-                onClose();
-            }, 1100);
+            setLastReceipt(result);
+            onCompleteSale(result);
         }
         catch (err) {
             setErrorMsg(err.message || "Failed to record Till payment");
@@ -536,17 +527,23 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                 fontWeight: 600,
                                 lineHeight: 1.4,
                             }, children: errorMsg })), isSuccess && (_jsxs("div", { style: {
-                                padding: "10px 14px",
-                                borderRadius: "var(--radius-md)",
-                                backgroundColor: "var(--accent-sage-bg)",
+                                borderRadius: "var(--radius-lg)",
                                 border: "1px solid var(--accent-sage-border)",
-                                color: "var(--accent-sage)",
-                                fontSize: 12,
-                                fontWeight: 700,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                            }, children: [_jsx(IconCheck, { size: 16 }), " Sale completed successfully"] })), lastReceipt && lastReceipt.textPreview && (_jsxs("details", { style: { fontSize: 11, color: "var(--text-muted)" }, children: [_jsx("summary", { style: { cursor: "pointer", fontWeight: 600 }, children: "Last receipt preview" }), _jsx("pre", { style: { whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: 10, backgroundColor: "var(--bg-surface-elevated)", padding: 12, borderRadius: 8, marginTop: 8, maxHeight: 200, overflowY: "auto", border: "1px solid var(--border-subtle)" }, children: lastReceipt.textPreview || lastReceipt.virtualParsed || "—" })] }))] }), _jsxs("div", { style: {
+                                backgroundColor: "var(--bg-surface-elevated)",
+                                overflow: "hidden",
+                            }, children: [_jsxs("div", { style: {
+                                        backgroundColor: "var(--accent-sage)",
+                                        color: "var(--bg-app)",
+                                        textAlign: "center",
+                                        padding: "14px 16px 12px",
+                                    }, children: [_jsxs("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 2 }, children: [_jsx(IconCheck, { size: 16 }), _jsx("span", { style: { fontWeight: 800, fontSize: 14, letterSpacing: "0.01em" }, children: "Sale Complete" })] }), _jsx("div", { style: { fontSize: 11, opacity: 0.85 }, children: new Date().toLocaleString("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "medium", timeStyle: "short" }) })] }), _jsx("div", { style: { padding: "12px 16px", borderBottom: "1px dashed var(--border-subtle)" }, children: items.map((item) => (_jsxs("div", { style: {
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "baseline",
+                                            gap: 8,
+                                            fontSize: 12,
+                                            padding: "3px 0",
+                                        }, children: [_jsxs("span", { style: { flex: 1, color: "var(--text-primary)", fontWeight: 500 }, children: [item.name, item.quantity > 1 && (_jsxs("span", { style: { color: "var(--text-muted)", fontWeight: 400 }, children: [" \u00D7", item.quantity] }))] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }, children: formatCurrency(item.lineTotalCents) })] }, item.id))) }), _jsxs("div", { style: { padding: "10px 16px", borderBottom: "1px dashed var(--border-subtle)", display: "flex", flexDirection: "column", gap: 4 }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }, children: [_jsx("span", { children: "Subtotal" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(totals.subtotalCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }, children: [_jsx("span", { children: "VAT" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(totals.totalTaxCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }, children: [_jsx("span", { children: "Total" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(totals.grandTotalCents) })] })] }), _jsxs("div", { style: { padding: "10px 16px", display: "flex", flexDirection: "column", gap: 4 }, children: [paymentMethod === "cash" && (_jsxs(_Fragment, { children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsx("span", { children: "Cash Tendered" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(cashTenderedCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "var(--accent-sage)" }, children: [_jsx("span", { children: "Change Due" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(changeDueCents) })] })] })), paymentMethod === "mpesa_stk" && (_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsxs("span", { children: ["M-Pesa STK \u2014 ", phoneNumber] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }, children: formatCurrency(totals.grandTotalCents) })] })), paymentMethod === "mpesa_till" && (_jsxs(_Fragment, { children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsxs("span", { children: ["M-Pesa Till ", TILL_NUMBER] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }, children: formatCurrency(totals.grandTotalCents) })] }), mpesaTillCode && (_jsxs("div", { style: { fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }, children: ["Ref: ", mpesaTillCode] }))] }))] })] }))] }), _jsxs("div", { style: {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "flex-end",
