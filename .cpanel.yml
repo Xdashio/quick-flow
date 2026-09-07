@@ -3,7 +3,9 @@ deployment:
   tasks:
     - export DEPLOYPATH=/home/$USER/register.crestcyber.co.ke
     - /bin/mkdir -p $DEPLOYPATH
+    - /bin/rm -rf $DEPLOYPATH/assets
     - /bin/cp -R register/dist/renderer/* $DEPLOYPATH/
     - /bin/cp register/dist/renderer/.htaccess $DEPLOYPATH/
+
 
 
