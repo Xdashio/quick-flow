@@ -19,6 +19,7 @@ tsconfig.build.tsbuildinfo
 **/*.db-*
 **/dist/
 !backend/dist/
+!shared/dist/
 !register/dist/
 !register/dist/renderer/
 !register/dist/renderer/**
