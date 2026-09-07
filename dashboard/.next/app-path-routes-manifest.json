@@ -8,10 +8,10 @@
   "/(dashboard)/page": "/",
   "/(dashboard)/categories/page": "/categories",
   "/(dashboard)/drawer/page": "/drawer",
-  "/(dashboard)/inventory/page": "/inventory",
-  "/(dashboard)/overview/page": "/overview",
   "/(dashboard)/products/page": "/products",
+  "/(dashboard)/inventory/page": "/inventory",
   "/login/page": "/login",
+  "/(dashboard)/users/page": "/users",
   "/(dashboard)/payments/page": "/payments",
-  "/(dashboard)/users/page": "/users"
+  "/(dashboard)/overview/page": "/overview"
 }
