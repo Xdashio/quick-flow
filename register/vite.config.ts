@@ -2,12 +2,16 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { posDbPlugin } from "./vite-plugin-pos-db.ts";
 
-export default defineConfig({
-  // Relative asset URLs: the packaged app loads via file:// (loadFile),
-  // where absolute "/assets/..." paths resolve to file:///assets and 404.
-  // "./" keeps both `vite dev` and the installed .deb/.AppImage working.
-  base: "./",
-  plugins: [react(), posDbPlugin()],
+export default defineConfig(({ command }) => ({
+  // Use "./" for Electron (file:// protocol) and "/" for web hosting.
+  // The WEB_BUILD env flag or `vite build` without electron wrapper triggers web mode.
+  base: process.env.WEB_BUILD === "1" ? "/" : "./",
+  plugins: [
+    react(),
+    // posDbPlugin provides the local SQLite dev server middleware — only
+    // needed during `vite dev`. It is NOT included in production builds.
+    ...(command === "serve" ? [posDbPlugin()] : []),
+  ],
   server: {
     port: 5173,
     strictPort: true,
@@ -15,5 +19,4 @@ export default defineConfig({
   build: {
     outDir: "dist/renderer",
   },
-});
-
+}));
