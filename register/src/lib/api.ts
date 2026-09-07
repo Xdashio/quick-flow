@@ -186,7 +186,7 @@ function mapBackendProductToCached(p: any): CachedProduct {
     tax_category_id: p.taxCategoryId ?? p.tax_category_id ?? null,
     category_id: p.categoryId ?? p.category_id ?? null,
     active: p.active ? 1 : 0,
-    image_key: p.imageKey ?? p.image_key ?? null,
+    image_key: p.imageUrl || p.imageKey || p.image_key || null,
     image_cached_at: null,
     created_at: p.createdAt || p.created_at || new Date().toISOString(),
     updated_at: p.updatedAt || p.updated_at || new Date().toISOString(),
