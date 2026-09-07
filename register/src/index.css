@@ -1,69 +1,88 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   /*
-   * Terminal Grid — the register as an instrument, not an app.
-   * Near-black, flat, hairline-divided. One signal color (orange-red)
-   * reserved for the total and the primary action, so it means something
-   * every time it appears. Everything else is ink, dim ink, and lines.
+   * Unified with the admin dashboard's design system — same warm obsidian
+   * & terracotta editorial dark palette, same type family, so the register
+   * and the back-office feel like one product instead of two apps stitched
+   * together. Values are pulled 1:1 from the dashboard's globals.css.
    */
-  --bg-app: #0e0f0d;
-  --bg-surface: #161815;
-  --bg-surface-elevated: #1c1e1a;
-  --bg-surface-subtle: #202220;
-  --bg-surface-card: #161815;
-  --border-subtle: #272924;
-  --border-strong: #3c3e37;
-  --border-focus: #ff6a2c;
+  --bg-app: #141413;
+  --bg-surface: #1b1a17;
+  --bg-surface-elevated: #22211c;
+  --bg-surface-subtle: #292823;
+  --bg-surface-card: #1e1d19;
+  --border-subtle: #2e2c26;
+  --border-strong: #444138;
+  --border-focus: #d97757;
 
-  --text-primary: #eef0e8;
-  --text-secondary: #a4a89c;
-  --text-muted: #6c6f65;
+  --text-primary: #f5f4ef;
+  --text-secondary: #b5b3a9;
+  --text-muted: #828076;
 
-  /* Signal — the one accent. Reserved for totals and primary actions. */
-  --accent-primary: #ff6a2c;
-  --accent-primary-hover: #e85a1e;
-  --accent-primary-text: #12130f;
-  --accent-primary-bg: rgba(255, 106, 44, 0.14);
-  --accent-primary-border: rgba(255, 106, 44, 0.4);
-  --accent-primary-ring: rgba(255, 106, 44, 0.18);
-  --accent-primary-shadow: rgba(255, 106, 44, 0.3);
+  /* Signal — the one accent. Reserved for totals and primary actions.
+   * Terracotta, matching the dashboard's brand accent. */
+  --accent-primary: #d97757;
+  --accent-primary-hover: #c5684a;
+  --accent-primary-text: #ffffff;
+  --accent-primary-bg: rgba(217, 119, 87, 0.12);
+  --accent-primary-border: rgba(217, 119, 87, 0.4);
+  --accent-primary-ring: rgba(217, 119, 87, 0.18);
+  --accent-primary-shadow: rgba(217, 119, 87, 0.3);
   /* Legacy alias — several components still reference this name directly */
   --accent-terracotta: var(--accent-primary);
   --accent-terracotta-bg: var(--accent-primary-bg);
 
-  /* Status accents — meaning-bearing only (tax type, online state, warnings) */
-  --accent-sage: #33c96f;
-  --accent-sage-bg: rgba(51, 201, 111, 0.14);
-  --accent-sage-border: rgba(51, 201, 111, 0.35);
-  --accent-mineral: #4c9fe8;
-  --accent-mineral-bg: rgba(76, 159, 232, 0.14);
-  --accent-mineral-border: rgba(76, 159, 232, 0.35);
-  --accent-amber: #f0b23e;
-  --accent-amber-bg: rgba(240, 178, 62, 0.14);
-  --accent-amber-border: rgba(240, 178, 62, 0.35);
-  --accent-rose: #ef5b57;
-  --accent-rose-bg: rgba(239, 91, 87, 0.14);
-  --accent-rose-border: rgba(239, 91, 87, 0.4);
-  --accent-emerald: #33c96f;
-  --accent-emerald-bg: rgba(51, 201, 111, 0.14);
-  --accent-blue: #4c9fe8;
+  /* Status accents — meaning-bearing only (tax type, online state, warnings).
+   * The dashboard only defines "emerald" for green; --accent-sage is kept
+   * as an alias pointing at the same value so nothing in the register's
+   * components needs to change. */
+  --accent-emerald: #5fad7c;
+  --accent-emerald-bg: rgba(95, 173, 124, 0.12);
+  --accent-sage: var(--accent-emerald);
+  --accent-sage-bg: var(--accent-emerald-bg);
+  --accent-sage-border: rgba(95, 173, 124, 0.35);
+  --accent-mineral: #7da5ce;
+  --accent-mineral-bg: rgba(125, 165, 206, 0.12);
+  --accent-mineral-border: rgba(125, 165, 206, 0.35);
+  --accent-amber: #e09f3e;
+  --accent-amber-bg: rgba(224, 159, 62, 0.12);
+  --accent-amber-border: rgba(224, 159, 62, 0.35);
+  --accent-rose: #e06d73;
+  --accent-rose-bg: rgba(224, 109, 115, 0.12);
+  --accent-rose-border: rgba(224, 109, 115, 0.4);
+  --accent-blue: var(--accent-mineral);
 
-  /* Flat, small-radius scale. --radius-pill is deliberately NOT a pill here —
-   * Terminal Grid uses small rounded rects instead of capsule shapes, so
-   * every component still referencing --radius-pill for buttons/chips/badges
-   * automatically picks up the instrument look without per-file edits. */
-  --radius-sm: 3px;
-  --radius-md: 5px;
-  --radius-lg: 7px;
-  --radius-xl: 9px;
-  --radius-pill: 5px;
+  /* Category identity colors — a rotating set of distinct hues used ONLY to
+   * give cashiers a fast, at-a-glance "which department is this" signal
+   * (category tab dot + a thin edge on product cards). Kept separate from
+   * the single-signal accent above so totals/actions stay singular and
+   * meaningful; two of the seven reuse the dashboard's own status colors
+   * (mineral, emerald, amber) and the rest extend that same warm-obsidian
+   * palette rather than introducing a clashing hue family. */
+  --cat-color-1: #7da5ce; /* mineral blue */
+  --cat-color-2: #5fad7c; /* emerald */
+  --cat-color-3: #e09f3e; /* amber */
+  --cat-color-4: #a888c9; /* muted plum */
+  --cat-color-5: #4fb0a5; /* teal */
+  --cat-color-6: #c99a52; /* ochre clay */
+  --cat-color-7: #8f9fd1; /* periwinkle */
 
-  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-elevated: 0 16px 32px -12px rgba(0, 0, 0, 0.55), 0 4px 10px -4px rgba(0, 0, 0, 0.4);
+  /* Radius + shadow scale, matching the dashboard exactly — including a
+   * true capsule --radius-pill (9999px) rather than the register's earlier
+   * small-rounded-rect stand-in, so buttons/chips/badges read as the same
+   * component family across both apps. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.3);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* ── Settings-driven layout tokens ──────────────────────────────────── */
@@ -76,52 +95,57 @@
 }
 
 [data-theme="light"] {
-  /*
-   * Terminal Grid — Light. Not a warm cream page: a cool, neutral daylight
-   * gray, like a spec sheet under shop lighting. Same instrument logic,
-   * same single signal color, darkened just enough to hold contrast on white.
-   */
-  --bg-app: #eef0ee;
+  /* Same dashboard tokens, light mode: warm cream instead of pure white,
+   * matching the admin app's light theme rather than the register's old
+   * independent cool-gray "spec sheet" look. */
+  --bg-app: #faf9f5;
   --bg-surface: #ffffff;
-  --bg-surface-elevated: #f5f6f3;
-  --bg-surface-subtle: #e9ebe6;
+  --bg-surface-elevated: #f4f3ee;
+  --bg-surface-subtle: #eae8df;
   --bg-surface-card: #ffffff;
-  --border-subtle: #dcdfd8;
-  --border-strong: #c2c6bc;
-  --border-focus: #d9491a;
+  --border-subtle: #e8e6dc;
+  --border-strong: #d2cfc3;
+  --border-focus: #d97757;
 
-  --text-primary: #14150f;
-  --text-secondary: #53564b;
-  --text-muted: #82857a;
+  --text-primary: #141413;
+  --text-secondary: #5c5a52;
+  --text-muted: #8c897e;
 
-  --accent-primary: #d9491a;
-  --accent-primary-hover: #c03e14;
+  --accent-primary: #d97757;
+  --accent-primary-hover: #c5684a;
   --accent-primary-text: #ffffff;
-  --accent-primary-bg: rgba(217, 73, 26, 0.09);
-  --accent-primary-border: rgba(217, 73, 26, 0.35);
-  --accent-primary-ring: rgba(217, 73, 26, 0.14);
-  --accent-primary-shadow: rgba(217, 73, 26, 0.25);
+  --accent-primary-bg: rgba(217, 119, 87, 0.1);
+  --accent-primary-border: rgba(217, 119, 87, 0.35);
+  --accent-primary-ring: rgba(217, 119, 87, 0.14);
+  --accent-primary-shadow: rgba(217, 119, 87, 0.25);
   --accent-terracotta: var(--accent-primary);
   --accent-terracotta-bg: var(--accent-primary-bg);
 
-  --accent-sage: #2f9d5c;
-  --accent-sage-bg: rgba(47, 157, 92, 0.1);
-  --accent-sage-border: rgba(47, 157, 92, 0.3);
-  --accent-mineral: #2f74b5;
-  --accent-mineral-bg: rgba(47, 116, 181, 0.1);
-  --accent-mineral-border: rgba(47, 116, 181, 0.3);
-  --accent-amber: #b3791f;
-  --accent-amber-bg: rgba(179, 121, 31, 0.1);
-  --accent-amber-border: rgba(179, 121, 31, 0.3);
-  --accent-rose: #c8433f;
-  --accent-rose-bg: rgba(200, 67, 63, 0.1);
-  --accent-rose-border: rgba(200, 67, 63, 0.32);
-  --accent-emerald: #2f9d5c;
-  --accent-emerald-bg: rgba(47, 157, 92, 0.1);
-  --accent-blue: #2f74b5;
+  --accent-emerald: #3d8f5e;
+  --accent-emerald-bg: rgba(61, 143, 94, 0.1);
+  --accent-sage: var(--accent-emerald);
+  --accent-sage-bg: var(--accent-emerald-bg);
+  --accent-sage-border: rgba(61, 143, 94, 0.3);
+  --accent-mineral: #48729d;
+  --accent-mineral-bg: rgba(72, 114, 157, 0.1);
+  --accent-mineral-border: rgba(72, 114, 157, 0.3);
+  --accent-amber: #b87a28;
+  --accent-amber-bg: rgba(184, 122, 40, 0.1);
+  --accent-amber-border: rgba(184, 122, 40, 0.3);
+  --accent-rose: #c94a50;
+  --accent-rose-bg: rgba(201, 74, 80, 0.1);
+  --accent-rose-border: rgba(201, 74, 80, 0.32);
+  --accent-blue: var(--accent-mineral);
 
-  --shadow-subtle: 0 1px 2px rgba(20, 21, 15, 0.08);
-  --shadow-elevated: 0 16px 32px -12px rgba(20, 21, 15, 0.16), 0 4px 10px -4px rgba(20, 21, 15, 0.08);
+  /* Same category palette, darkened to hold contrast on the warm cream
+   * surface instead of the near-black one. */
+  --cat-color-1: #48729d;
+  --cat-color-2: #3d8f5e;
+  --cat-color-3: #b87a28;
+  --cat-color-4: #8a5fa8;
+  --cat-color-5: #2f8a80;
+  --cat-color-6: #a67a3a;
+  --cat-color-7: #6673b0;
 }
 
 /* Compact density — tighter grid/list spacing, more visible at once. */
@@ -248,10 +272,12 @@ button {
 }
 
 /*
- * Terminal Grid card — a flat cell in a spec sheet, not a floating card.
+ * Catalog grid card — a flat cell in a dense grid, not a floating card.
  * No shadow, no lift; the grid lines (drawn by the parent's background +
  * 1px gap) are the only separator between items. Hover just shifts the
- * fill so scanning stays calm and instant.
+ * fill so scanning stays calm and instant. This flat-grid treatment is a
+ * layout choice independent of the color/radius tokens above, which now
+ * match the admin dashboard.
  */
 .pos-product-card-shell {
   background: var(--bg-surface-card);
@@ -291,7 +317,7 @@ button {
 
 /* Badge shown on a card already in the cart. Small, rectangular, sits
  * inline with the tag row rather than floating off the corner — quieter,
- * more "spec sheet" than "notification". */
+ * more "inline tag" than "notification". */
 .pos-card-qty-flag {
   position: absolute;
   top: 10px;
@@ -312,7 +338,8 @@ button {
   pointer-events: none;
 }
 
-/* Pill Stepper Capsule — small rounded rect via --radius-pill */
+/* Pill Stepper Capsule — now a true capsule via --radius-pill (9999px),
+   matching the dashboard's pill controls. */
 .pos-stepper-capsule {
   display: flex;
   align-items: center;
@@ -455,6 +482,53 @@ button {
   color: var(--text-primary);
   border-bottom-color: var(--accent-primary);
   box-shadow: none;
+}
+
+/* Compact filter popover — replaces the old always-visible tax-type
+ * segmented control that used to sit permanently above the catalog. It's
+ * back-office/compliance filtering, not something a cashier reaches for
+ * mid-sale, so it now lives behind a small icon button and only appears
+ * on demand. */
+.pos-filter-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 190px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pos-filter-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  min-height: var(--touch-min);
+}
+
+.pos-filter-popover-item:hover {
+  background-color: var(--bg-surface-subtle);
+}
+
+.pos-filter-popover-item.active {
+  color: var(--text-primary);
+  background-color: var(--bg-surface-subtle);
 }
 
 /* Slide-over panel shell */

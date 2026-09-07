@@ -165,6 +165,12 @@ export const IconChevronDown: React.FC<IconProps> = ({ size = 16, ...props }) =>
   </svg>
 );
 
+export const IconFilter: React.FC<IconProps> = ({ size = 16, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <polygon points="4 4 20 4 14 12.5 14 19 10 21 10 12.5 4 4" />
+  </svg>
+);
+
 export const IconMenu: React.FC<IconProps> = ({ size = 18, ...props }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <line x1="4" y1="7" x2="20" y2="7" />

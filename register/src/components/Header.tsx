@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import type { SyncStatus } from "../lib/types";
 import { useSettings } from "../lib/settings";
 import { IconSync, IconSun, IconMoon, IconLock, IconSettings, IconMenu, IconClose } from "./icons";
@@ -22,6 +22,27 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { theme, toggleTheme } = useSettings();
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+
+  // Locking the till is a routine, frequent action (end of shift, stepping
+  // away) — not a destructive one — so it shouldn't sit permanently in
+  // warning-red like an error state. It stays visually neutral until armed,
+  // then asks for a second tap, same inline-confirm pattern used for
+  // removing cart items.
+  const [logoutArmed, setLogoutArmed] = useState(false);
+  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current); }, []);
+
+  const handleLogoutClick = () => {
+    if (logoutArmed) {
+      if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+      setLogoutArmed(false);
+      onLogout?.();
+    } else {
+      setLogoutArmed(true);
+      logoutTimerRef.current = setTimeout(() => setLogoutArmed(false), 2500);
+    }
+  };
 
   const isSyncing = syncStatus?.status === "syncing";
   const isOffline = syncStatus?.status === "offline" || !syncStatus?.isOnline;
@@ -218,16 +239,23 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             {onLogout && (
               <button
-                onClick={onLogout}
-                title="Lock Till / Sign Out"
+                onClick={handleLogoutClick}
+                title={logoutArmed ? "Tap again to confirm" : "Lock Till / Sign Out"}
                 className="pos-icon-btn"
                 style={{
-                  backgroundColor: "var(--accent-rose-bg)",
-                  border: "1px solid var(--accent-rose-border)",
-                  color: "var(--accent-rose)",
+                  gap: logoutArmed ? 6 : 0,
+                  width: logoutArmed ? "auto" : undefined,
+                  padding: logoutArmed ? "0 12px" : undefined,
+                  backgroundColor: logoutArmed ? "var(--accent-rose-bg)" : undefined,
+                  border: logoutArmed ? "1px solid var(--accent-rose-border)" : undefined,
+                  color: logoutArmed ? "var(--accent-rose)" : undefined,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  transition: "all 0.18s var(--ease-spring)",
                 }}
               >
                 <IconLock size={16} />
+                {logoutArmed && <span>Confirm?</span>}
               </button>
             )}
           </div>

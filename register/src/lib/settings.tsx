@@ -10,8 +10,13 @@ export interface PosSettings {
   density: Density;
 }
 
+// Default to light: counters sit under bright overhead shop lighting, and a
+// lighter surface holds up better against glare/legibility than a near-black
+// one for a screen viewed from arm's length by both cashier and customer.
+// Dark mode is still one tap away via the header toggle for anyone who
+// prefers it or works a dim/late-night counter.
 const DEFAULT_SETTINGS: PosSettings = {
-  theme: "dark",
+  theme: "light",
   displayScale: 1,
   density: "comfortable",
 };
@@ -35,7 +40,7 @@ function loadSettings(): PosSettings {
     }
     const parsed = JSON.parse(raw);
     return {
-      theme: parsed.theme === "light" ? "light" : "dark",
+      theme: parsed.theme === "dark" ? "dark" : "light",
       displayScale: clampScale(Number(parsed.displayScale) || 1),
       density: ["compact", "comfortable", "spacious"].includes(parsed.density)
         ? parsed.density

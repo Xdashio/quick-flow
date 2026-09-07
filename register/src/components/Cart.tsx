@@ -153,21 +153,20 @@ const CartLineItem: React.FC<{
           </button>
         </div>
 
-        {/* Line Total */}
-        <div style={{ textAlign: "right" }}>
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontWeight: 700,
-              fontSize: 14,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {formatCurrency(item.lineTotalCents)}
-          </div>
-          <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
-            incl. {formatTaxRate(item.taxRateBp)} tax
-          </div>
+        {/* Line Total — tax is already itemized once, correctly, in the
+            summary ledger below the list. Repeating "incl. X% tax" on every
+            single line restated the same fact at a second scale for no
+            operational reason, so it's gone; the rate is still visible via
+            the tax-type dot on the product card and the ledger breakdown. */}
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+            fontSize: 14,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {formatCurrency(item.lineTotalCents)}
         </div>
       </div>
     </div>
@@ -385,7 +384,10 @@ export const Cart: React.FC<CartProps> = ({
         {/* Divider */}
         <div style={{ height: 1, backgroundColor: "var(--border-subtle)", margin: "2px 0" }} />
 
-        {/* Grand Total */}
+        {/* Grand Total — this is the one number a cashier reads aloud and a
+            customer squints at from across the counter, further away than
+            a typical touchscreen is used, so it needs to dominate the
+            footer rather than sit at roughly cart-line-item size. */}
         <div
           style={{
             display: "flex",
@@ -399,10 +401,10 @@ export const Cart: React.FC<CartProps> = ({
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 23,
+              fontSize: 36,
               fontWeight: 800,
               letterSpacing: "-0.02em",
-              color: "var(--text-primary)",
+              color: "var(--accent-primary)",
             }}
           >
             {formatCurrency(totals.grandTotalCents)}
