@@ -68,41 +68,55 @@ __turbopack_context__.s([
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/server.js [app-route] (ecmascript)");
 ;
-const BACKEND = process.env.BACKEND_URL;
+function getBackendUrl() {
+    const url = process.env.BACKEND_URL ?? ("TURBOPACK compile-time value", "https://api.crestcyber.co.ke") ?? 'https://api.crestcyber.co.ke';
+    return url.replace(/\/$/, '');
+}
 async function POST(req) {
-    const body = await req.json();
-    // Proxy credentials to NestJS backend
-    const upstream = await fetch(`${BACKEND}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-    });
-    if (!upstream.ok) {
-        const err = await upstream.json().catch(()=>({
-                message: 'Login failed'
-            }));
+    try {
+        const body = await req.json();
+        const backendUrl = getBackendUrl();
+        // Proxy credentials to NestJS backend
+        const upstream = await fetch(`${backendUrl}/api/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        if (!upstream.ok) {
+            const err = await upstream.json().catch(()=>({
+                    message: 'Login failed'
+                }));
+            return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
+                message: err.message ?? 'Invalid credentials'
+            }, {
+                status: upstream.status
+            });
+        }
+        const data = await upstream.json();
+        const token = data.accessToken;
+        const response = __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
+            user: data.user
+        });
+        // Set httpOnly cookie — not accessible from JS, secure in production
+        response.cookies.set('pos_session', token, {
+            httpOnly: true,
+            secure: ("TURBOPACK compile-time value", "development") === 'production',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 8,
+            path: '/'
+        });
+        return response;
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Backend connection error';
+        console.error('[Login Proxy Error]:', message);
         return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-            message: err.message ?? 'Invalid credentials'
+            message: `Failed to connect to backend server (${message})`
         }, {
-            status: upstream.status
+            status: 502
         });
     }
-    const data = await upstream.json();
-    const token = data.accessToken;
-    const response = __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
-        user: data.user
-    });
-    // Set httpOnly cookie — not accessible from JS, secure in production
-    response.cookies.set('pos_session', token, {
-        httpOnly: true,
-        secure: ("TURBOPACK compile-time value", "development") === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 8,
-        path: '/'
-    });
-    return response;
 }
 }),
 ];

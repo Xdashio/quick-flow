@@ -7,11 +7,11 @@
   "/page": "/",
   "/(dashboard)/page": "/",
   "/(dashboard)/categories/page": "/categories",
-  "/(dashboard)/drawer/page": "/drawer",
-  "/(dashboard)/products/page": "/products",
   "/(dashboard)/inventory/page": "/inventory",
-  "/login/page": "/login",
-  "/(dashboard)/users/page": "/users",
+  "/(dashboard)/drawer/page": "/drawer",
   "/(dashboard)/payments/page": "/payments",
-  "/(dashboard)/overview/page": "/overview"
+  "/(dashboard)/overview/page": "/overview",
+  "/(dashboard)/products/page": "/products",
+  "/login/page": "/login",
+  "/(dashboard)/users/page": "/users"
 }
