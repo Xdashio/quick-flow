@@ -713,7 +713,7 @@ function EditPanel({
       {confirmRemove && (
         <ConfirmDialog
           title="Remove Image"
-          message={`Remove the image from ${product.name}? The file is deleted from storage and this cannot be undone.`}
+          message={`Remove the image from ${product?.name ?? 'this product'}? The file is deleted from storage and this cannot be undone.`}
           confirmLabel="Remove Image"
           loading={removing}
           error={imgError}

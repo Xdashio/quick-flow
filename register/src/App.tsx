@@ -36,6 +36,10 @@ export default function App() {
   const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [lastSale, setLastSale] = useState<any>(null);
+  // Holds a successfully paid sale while the tender modal shows the receipt
+  // + Done button. The cart is only cleared when the modal closes (Done),
+  // so the receipt never flashes back to an empty "0 items" tender.
+  const [pendingCompletedSale, setPendingCompletedSale] = useState<any>(null);
   const [hasHeldSale, setHasHeldSale] = useState<boolean>(() => {
     try { return Boolean(localStorage.getItem("pos-held-cart")); } catch { return false; }
   });
@@ -226,14 +230,26 @@ export default function App() {
   }, {});
 
   const handleCompleteSale = (result: any) => {
-    // Capture the total at the moment of sale — cartItems (and therefore
-    // `totals`) are cleared right after, so the banner must not rely on
-    // recomputing totals from an already-emptied cart.
-    setLastSale({ ...result, totalCents: result.transaction?.totalCents ?? totals.grandTotalCents });
-    setCartItems([]);
-    setIsMobileCartOpen(false);
+    // Payment succeeded — stage the sale for the Done step. Keep the cart
+    // intact while the modal renders its frozen receipt snapshot.
+    // Capture the total now; the cart (and derived `totals`) is cleared on Done.
+    setPendingCompletedSale({ ...result, totalCents: result.transaction?.totalCents ?? totals.grandTotalCents });
     // Refresh sync status to show pendingCount update
     posApi.getSyncStatus().then(setSyncStatus).catch(() => {});
+  };
+
+  const handleTenderModalClose = () => {
+    // Real till lifecycle: Tender → Processing → Success (receipt + Done) →
+    // Done/close → Idle. Finalize here so Cancel keeps the cart, while Done
+    // (or X/backdrop after success) clears it and shows the banner.
+    if (pendingCompletedSale) {
+      setLastSale(pendingCompletedSale);
+      setPendingCompletedSale(null);
+      setCartItems([]);
+      setIsMobileCartOpen(false);
+      posApi.getSyncStatus().then(setSyncStatus).catch(() => {});
+    }
+    setIsTenderModalOpen(false);
   };
 
   const handleApplyDiscount = (id: string, discountCents: number) => {
@@ -429,7 +445,7 @@ export default function App() {
       {/* Cash Tender Modal — wired to real backend via completeCashSale */}
       <TenderModal
         isOpen={isTenderModalOpen}
-        onClose={() => setIsTenderModalOpen(false)}
+        onClose={handleTenderModalClose}
         items={cartItems}
         totals={totals}
         onCompleteSale={handleCompleteSale}

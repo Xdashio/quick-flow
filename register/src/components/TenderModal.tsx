@@ -46,23 +46,45 @@ export const TenderModal: React.FC<TenderModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
+  // Frozen copy of the sale at the moment payment succeeds. The receipt,
+  // totals banner and Done state must render from this — never from the
+  // live cart props, which are cleared when the sale finalizes.
+  const [saleSnapshot, setSaleSnapshot] = useState<{
+    items: CartItem[];
+    totals: CartTotals;
+    paymentMethod: "cash" | "mpesa_stk" | "mpesa_till";
+    cashTenderedCents: number;
+    changeDueCents: number;
+    phoneNumber: string;
+    tillCode: string;
+  } | null>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
+  const wasOpenRef = useRef(false);
 
-  // Reset states when modal opens
+  // Reset only on the closed → open transition. Must NOT depend on
+  // totals.grandTotalCents: the parent clears the cart after a successful
+  // sale, and re-running this reset would wipe isSuccess + receipt and
+  // leave the modal looking like a fresh empty tender.
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
+      setPaymentMethod("cash");
       setCashTenderedCents(totals.grandTotalCents);
       setRawInput(totals.grandTotalCents ? (totals.grandTotalCents / 100).toFixed(0) : "");
       setErrorMsg(null);
       setIsSuccess(false);
       setLastReceipt(null);
+      setSaleSnapshot(null);
       setIsProcessing(false);
       setStkPending(false);
       setStkCountdown(60);
+      setStkStatusText("Waiting for customer PIN...");
+      setPhoneNumber("");
+      setMpesaTillCode("");
       pollAbortRef.current = false;
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     }
-  }, [isOpen, totals.grandTotalCents]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Clean up countdown on unmount
   useEffect(() => {
@@ -74,10 +96,22 @@ export const TenderModal: React.FC<TenderModalProps> = ({
 
   if (!isOpen) return null;
 
-  const changeDueCents = Math.max(0, cashTenderedCents - totals.grandTotalCents);
-  const isExactOrMore = cashTenderedCents >= totals.grandTotalCents;
-  const isBelowTotal = cashTenderedCents > 0 && cashTenderedCents < totals.grandTotalCents;
-  const isZeroItems = items.length === 0;
+  // After success, freeze the UI on the snapshot so clearing the live cart
+  // cannot turn the receipt back into an empty "0 items / KES 0.00" tender.
+  const displayItems = isSuccess && saleSnapshot ? saleSnapshot.items : items;
+  const displayTotals = isSuccess && saleSnapshot ? saleSnapshot.totals : totals;
+  const displayCashTendered =
+    isSuccess && saleSnapshot ? saleSnapshot.cashTenderedCents : cashTenderedCents;
+  const displayPhone = isSuccess && saleSnapshot ? saleSnapshot.phoneNumber : phoneNumber;
+  const displayTillCode = isSuccess && saleSnapshot ? saleSnapshot.tillCode : mpesaTillCode;
+  const displayMethod = isSuccess && saleSnapshot ? saleSnapshot.paymentMethod : paymentMethod;
+
+  const changeDueCents = Math.max(0, displayCashTendered - displayTotals.grandTotalCents);
+  const isExactOrMore = displayCashTendered >= displayTotals.grandTotalCents;
+  const isBelowTotal =
+    displayCashTendered > 0 && displayCashTendered < displayTotals.grandTotalCents;
+  const isZeroItems = displayItems.length === 0;
+  const inputsLocked = isSuccess || stkPending || isProcessing;
 
   const MAX_CASH_SHILLINGS = 999_999;
 
@@ -124,6 +158,15 @@ setIsProcessing(true);
     setErrorMsg(null);
     try {
       const result = await completeCashSale(items, totals, cashTenderedCents);
+      setSaleSnapshot({
+        items: [...items],
+        totals: { ...totals },
+        paymentMethod: "cash",
+        cashTenderedCents,
+        changeDueCents: Math.max(0, cashTenderedCents - totals.grandTotalCents),
+        phoneNumber: "",
+        tillCode: "",
+      });
       setIsSuccess(true);
       setLastReceipt(result);
       onCompleteSale(result);
@@ -192,6 +235,15 @@ setIsProcessing(true);
 
       if (pollResult.status === "captured") {
         setStkPending(false);
+        setSaleSnapshot({
+          items: [...items],
+          totals: { ...totals },
+          paymentMethod: "mpesa_stk",
+          cashTenderedCents: totals.grandTotalCents,
+          changeDueCents: 0,
+          phoneNumber,
+          tillCode: "",
+        });
         setIsSuccess(true);
         setLastReceipt(pollResult.receipt);
         onCompleteSale({
@@ -244,6 +296,15 @@ setIsProcessing(true);
 
     try {
       const result = await completeMpesaTillSale(items, totals, code);
+      setSaleSnapshot({
+        items: [...items],
+        totals: { ...totals },
+        paymentMethod: "mpesa_till",
+        cashTenderedCents: totals.grandTotalCents,
+        changeDueCents: 0,
+        phoneNumber: "",
+        tillCode: code,
+      });
       setIsSuccess(true);
       setLastReceipt(result);
       onCompleteSale(result);
@@ -365,11 +426,11 @@ setIsProcessing(true);
             <div>
               <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Total Payable</span>
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                {totals.itemCount} items · incl. VAT
+                {displayTotals.itemCount} items · incl. VAT
               </div>
-              {items.length > 0 && (
+              {displayItems.length > 0 && (
                 <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, maxWidth: 220, lineHeight: 1.4 }}>
-                  {items.map((i) => `${i.name} x ${i.quantity}`).join(", ").substring(0, 80)}
+                  {displayItems.map((i) => `${i.name} x ${i.quantity}`).join(", ").substring(0, 80)}
                 </div>
               )}
             </div>
@@ -382,7 +443,7 @@ setIsProcessing(true);
                 color: "var(--text-primary)",
               }}
             >
-              {formatCurrency(totals.grandTotalCents)}
+              {formatCurrency(displayTotals.grandTotalCents)}
             </span>
           </div>
 
@@ -393,12 +454,13 @@ setIsProcessing(true);
               { id: "mpesa_stk", label: "M-Pesa STK", icon: <IconPhone size={16} /> },
               { id: "mpesa_till", label: `Till ${TILL_NUMBER}`, icon: <IconPhone size={16} /> },
             ].map((method) => {
-              const active = paymentMethod === method.id;
+              const active = displayMethod === method.id;
               return (
                 <button
                   key={method.id}
-                  disabled={stkPending || isProcessing}
+                  disabled={inputsLocked}
                   onClick={() => {
+                    if (isSuccess) return;
                     setPaymentMethod(method.id as any);
                     setErrorMsg(null);
                   }}
@@ -412,12 +474,12 @@ setIsProcessing(true);
                     backgroundColor: active ? "var(--accent-primary)" : "var(--bg-surface-elevated)",
                     color: active ? "var(--accent-primary-text)" : "var(--text-secondary)",
                     border: `1px solid ${active ? "transparent" : "var(--border-subtle)"}`,
-                    cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
+                    cursor: inputsLocked ? "not-allowed" : "pointer",
                     fontSize: 12,
                     fontWeight: 600,
                     boxShadow: "none",
                     transition: "all 0.18s var(--ease-spring)",
-                    opacity: stkPending || isProcessing ? 0.6 : 1,
+                    opacity: inputsLocked ? 0.6 : 1,
                   }}
                 >
                   {method.icon}
@@ -428,7 +490,7 @@ setIsProcessing(true);
           </div>
 
           {/* 1. CASH TAB */}
-          {paymentMethod === "cash" && (
+          {displayMethod === "cash" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {/* Quick denomination chips */}
               <div>
@@ -437,11 +499,12 @@ setIsProcessing(true);
                 </label>
                 <div style={{ display: "flex", gap: 6 }}>
                   {[500, 1000, 2000, 5000].map((shillings) => {
-                    const isActive = cashTenderedCents === shillings * 100;
+                    const isActive = displayCashTendered === shillings * 100;
                     return (
                       <button
                         key={shillings}
                         onClick={() => handleQuickCash(shillings)}
+                        disabled={isSuccess}
                         style={{
                           flex: 1,
                           padding: "8px 0",
@@ -452,7 +515,8 @@ setIsProcessing(true);
                           border: `1px solid ${isActive ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
                           borderRadius: "var(--radius-md)",
                           color: isActive ? "var(--accent-primary)" : "var(--text-secondary)",
-                          cursor: "pointer",
+                          cursor: isSuccess ? "not-allowed" : "pointer",
+                          opacity: isSuccess ? 0.6 : 1,
                           transition: "all 0.18s var(--ease-spring)",
                         }}
                       >
@@ -462,21 +526,24 @@ setIsProcessing(true);
                   })}
                   <button
                     onClick={() => {
+                      if (isSuccess) return;
                       const exact = totals.grandTotalCents;
                       setCashTenderedCents(exact);
                       setRawInput((exact / 100).toFixed(0));
                       setErrorMsg(null);
                     }}
+                    disabled={isSuccess}
                     style={{
                       flex: 1,
                       padding: "8px 0",
                       fontSize: 11,
                       fontWeight: 700,
-                      backgroundColor: cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary-bg)" : "var(--bg-surface-elevated)",
-                      border: `1px solid ${cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
+                      backgroundColor: displayCashTendered === displayTotals.grandTotalCents ? "var(--accent-primary-bg)" : "var(--bg-surface-elevated)",
+                      border: `1px solid ${displayCashTendered === displayTotals.grandTotalCents ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
                       borderRadius: "var(--radius-md)",
-                      color: cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary)" : "var(--text-muted)",
-                      cursor: "pointer",
+                      color: displayCashTendered === displayTotals.grandTotalCents ? "var(--accent-primary)" : "var(--text-muted)",
+                      cursor: isSuccess ? "not-allowed" : "pointer",
+                      opacity: isSuccess ? 0.6 : 1,
                       transition: "all 0.18s var(--ease-spring)",
                       letterSpacing: "0.01em",
                     }}
@@ -526,9 +593,10 @@ setIsProcessing(true);
                     ref={customInputRef}
                     type="text"
                     inputMode="decimal"
-                    value={rawInput}
+                    value={isSuccess ? (displayCashTendered / 100).toFixed(0) : rawInput}
                     onChange={handleCustomInputChange}
                     onBlur={handleCustomInputBlur}
+                    disabled={isSuccess}
                     onFocus={(e) => {
                       e.currentTarget.select();
                       e.currentTarget.style.borderColor = isBelowTotal
@@ -556,7 +624,7 @@ setIsProcessing(true);
                     }}
                   />
                 </div>
-                {isBelowTotal && (
+                {isBelowTotal && !isSuccess && (
                   <div
                     style={{
                       display: "flex",
@@ -568,7 +636,7 @@ setIsProcessing(true);
                       color: "var(--accent-rose)",
                     }}
                   >
-                    Short by {formatCurrency(totals.grandTotalCents - cashTenderedCents)}
+                    Short by {formatCurrency(displayTotals.grandTotalCents - displayCashTendered)}
                   </div>
                 )}
               </div>
@@ -592,7 +660,7 @@ setIsProcessing(true);
                 <div>
                   <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Tendered</span>
                   <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 800, marginTop: 3 }}>
-                    {formatCurrency(cashTenderedCents)}
+                    {formatCurrency(displayCashTendered)}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -616,6 +684,7 @@ setIsProcessing(true);
                 <button
                   onClick={handleNoSaleDrawer}
                   type="button"
+                  disabled={isSuccess}
                   style={{
                     flex: 1,
                     padding: "8px 12px",
@@ -625,13 +694,15 @@ setIsProcessing(true);
                     color: "var(--text-secondary)",
                     fontSize: 11,
                     fontWeight: 600,
-                    cursor: "pointer",
+                    cursor: isSuccess ? "not-allowed" : "pointer",
+                    opacity: isSuccess ? 0.5 : 1,
                   }}
                 >
                   No-Sale Drawer
                 </button>
                 <button
                   onClick={async () => {
+                    if (isSuccess) return;
                     try {
                       await openDrawer({ reason: "manager_override", amountCents: 0 });
                     } catch (e: any) {
@@ -639,6 +710,7 @@ setIsProcessing(true);
                     }
                   }}
                   type="button"
+                  disabled={isSuccess}
                   style={{
                     flex: 1,
                     padding: "8px 12px",
@@ -648,7 +720,8 @@ setIsProcessing(true);
                     color: "var(--text-secondary)",
                     fontSize: 11,
                     fontWeight: 600,
-                    cursor: "pointer",
+                    cursor: isSuccess ? "not-allowed" : "pointer",
+                    opacity: isSuccess ? 0.5 : 1,
                   }}
                 >
                   Manager Override
@@ -658,9 +731,9 @@ setIsProcessing(true);
           )}
 
           {/* 2. M-PESA STK PUSH TAB */}
-          {paymentMethod === "mpesa_stk" && (
+          {displayMethod === "mpesa_stk" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {!stkPending ? (
+              {!stkPending && !isSuccess ? (
                 <>
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>
@@ -686,11 +759,11 @@ setIsProcessing(true);
                       }}
                     />
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.45 }}>
-                      Customer will receive an instant prompt on their phone to enter their M-Pesa PIN for {formatCurrency(totals.grandTotalCents)}.
+                      Customer will receive an instant prompt on their phone to enter their M-Pesa PIN for {formatCurrency(displayTotals.grandTotalCents)}.
                     </div>
                   </div>
                 </>
-              ) : (
+              ) : stkPending ? (
                 /* STK Waiting Card */
                 <div
                   style={{
@@ -725,7 +798,7 @@ setIsProcessing(true);
                       {stkStatusText}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-                      Phone: {phoneNumber} · Amount: {formatCurrency(totals.grandTotalCents)}
+                      Phone: {displayPhone} · Amount: {formatCurrency(displayTotals.grandTotalCents)}
                     </div>
                   </div>
                   <div
@@ -759,12 +832,26 @@ setIsProcessing(true);
                     Cancel STK Push
                   </button>
                 </div>
+              ) : (
+                /* Locked paid summary — receipt below carries the detail */
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "var(--radius-md)",
+                    backgroundColor: "var(--bg-surface-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                    fontSize: 12,
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  M-Pesa STK paid · {displayPhone} · {formatCurrency(displayTotals.grandTotalCents)}
+                </div>
               )}
             </div>
           )}
 
           {/* 3. M-PESA BUY GOODS TILL TAB */}
-          {paymentMethod === "mpesa_till" && (
+          {displayMethod === "mpesa_till" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {/* Prominent Till Badge */}
               <div
@@ -787,7 +874,7 @@ setIsProcessing(true);
                   {TILL_NUMBER}
                 </span>
                 <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                  Instruct customer to pay {formatCurrency(totals.grandTotalCents)} to Till {TILL_NUMBER}
+                  Instruct customer to pay {formatCurrency(displayTotals.grandTotalCents)} to Till {TILL_NUMBER}
                 </span>
               </div>
 
@@ -797,10 +884,11 @@ setIsProcessing(true);
                 </label>
                 <input
                   type="text"
-                  value={mpesaTillCode}
-                  onChange={(e) => setMpesaTillCode(e.target.value.toUpperCase())}
+                  value={displayTillCode}
+                  onChange={(e) => { if (!isSuccess) setMpesaTillCode(e.target.value.toUpperCase()); }}
                   placeholder="e.g. QHN7ACKQOP"
                   maxLength={14}
+                  disabled={isSuccess}
                   style={{
                     width: "100%",
                     height: 48,
@@ -872,7 +960,7 @@ setIsProcessing(true);
 
               {/* Line Items */}
               <div style={{ padding: "12px 16px", borderBottom: "1px dashed var(--border-subtle)" }}>
-                {items.map((item) => (
+                {displayItems.map((item) => (
                   <div
                     key={item.id}
                     style={{
@@ -901,25 +989,25 @@ setIsProcessing(true);
               <div style={{ padding: "10px 16px", borderBottom: "1px dashed var(--border-subtle)", display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }}>
                   <span>Subtotal</span>
-                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(totals.subtotalCents)}</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(displayTotals.subtotalCents)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }}>
                   <span>VAT</span>
-                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(totals.totalTaxCents)}</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(displayTotals.totalTaxCents)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }}>
                   <span>Total</span>
-                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(totals.grandTotalCents)}</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(displayTotals.grandTotalCents)}</span>
                 </div>
               </div>
 
               {/* Payment Row */}
               <div style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-                {paymentMethod === "cash" && (
+                {displayMethod === "cash" && (
                   <>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
                       <span>Cash Tendered</span>
-                      <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(cashTenderedCents)}</span>
+                      <span style={{ fontFamily: "var(--font-mono)" }}>{formatCurrency(displayCashTendered)}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "var(--accent-sage)" }}>
                       <span>Change Due</span>
@@ -927,21 +1015,21 @@ setIsProcessing(true);
                     </div>
                   </>
                 )}
-                {paymentMethod === "mpesa_stk" && (
+                {displayMethod === "mpesa_stk" && (
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
-                    <span>M-Pesa STK — {phoneNumber}</span>
-                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }}>{formatCurrency(totals.grandTotalCents)}</span>
+                    <span>M-Pesa STK — {displayPhone}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }}>{formatCurrency(displayTotals.grandTotalCents)}</span>
                   </div>
                 )}
-                {paymentMethod === "mpesa_till" && (
+                {displayMethod === "mpesa_till" && (
                   <>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
                       <span>M-Pesa Till {TILL_NUMBER}</span>
-                      <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }}>{formatCurrency(totals.grandTotalCents)}</span>
+                      <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }}>{formatCurrency(displayTotals.grandTotalCents)}</span>
                     </div>
-                    {mpesaTillCode && (
+                    {displayTillCode && (
                       <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                        Ref: {mpesaTillCode}
+                        Ref: {displayTillCode}
                       </div>
                     )}
                   </>
@@ -981,7 +1069,7 @@ setIsProcessing(true);
             Cancel
           </button>
 
-          {paymentMethod === "cash" && (
+          {displayMethod === "cash" && (
             <button
               onClick={isSuccess ? onClose : handleCashConfirm}
               disabled={isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems))}
@@ -1011,16 +1099,16 @@ setIsProcessing(true);
             </button>
           )}
 
-          {paymentMethod === "mpesa_stk" && !stkPending && (
+          {displayMethod === "mpesa_stk" && !stkPending && (
             <button
-              onClick={handleStkInitiate}
-              disabled={isProcessing || isZeroItems || !phoneNumber.trim()}
+              onClick={isSuccess ? onClose : handleStkInitiate}
+              disabled={isProcessing || (!isSuccess && (isZeroItems || !phoneNumber.trim()))}
               className="pos-btn-pill pos-btn-pill-primary"
               style={{
                 padding: "10px 24px",
-                backgroundColor: "var(--accent-primary)",
-                opacity: (isProcessing || isZeroItems || !phoneNumber.trim()) ? 0.5 : 1,
-                cursor: (isProcessing || isZeroItems || !phoneNumber.trim()) ? "not-allowed" : "pointer",
+                backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
+                opacity: (isProcessing || (!isSuccess && (isZeroItems || !phoneNumber.trim()))) ? 0.5 : 1,
+                cursor: (isProcessing || (!isSuccess && (isZeroItems || !phoneNumber.trim()))) ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
@@ -1028,11 +1116,16 @@ setIsProcessing(true);
                 fontWeight: 700,
               }}
             >
-              {isProcessing ? <span>Sending...</span> : <span>Send STK Push</span>}
+              {isSuccess ? (
+                <>
+                  <IconCheck size={16} />
+                  <span>Done</span>
+                </>
+              ) : isProcessing ? <span>Sending...</span> : <span>Send STK Push</span>}
             </button>
           )}
 
-          {paymentMethod === "mpesa_till" && (
+          {displayMethod === "mpesa_till" && (
             <button
               onClick={isSuccess ? onClose : handleTillConfirm}
               disabled={isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8))}

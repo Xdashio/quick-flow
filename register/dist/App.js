@@ -31,6 +31,10 @@ export default function App() {
     const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
     const [lastSale, setLastSale] = useState(null);
+    // Holds a successfully paid sale while the tender modal shows the receipt
+    // + Done button. The cart is only cleared when the modal closes (Done),
+    // so the receipt never flashes back to an empty "0 items" tender.
+    const [pendingCompletedSale, setPendingCompletedSale] = useState(null);
     const [hasHeldSale, setHasHeldSale] = useState(() => {
         try {
             return Boolean(localStorage.getItem("pos-held-cart"));
@@ -200,14 +204,25 @@ export default function App() {
         return acc;
     }, {});
     const handleCompleteSale = (result) => {
-        // Capture the total at the moment of sale — cartItems (and therefore
-        // `totals`) are cleared right after, so the banner must not rely on
-        // recomputing totals from an already-emptied cart.
-        setLastSale({ ...result, totalCents: result.transaction?.totalCents ?? totals.grandTotalCents });
-        setCartItems([]);
-        setIsMobileCartOpen(false);
+        // Payment succeeded — stage the sale for the Done step. Keep the cart
+        // intact while the modal renders its frozen receipt snapshot.
+        // Capture the total now; the cart (and derived `totals`) is cleared on Done.
+        setPendingCompletedSale({ ...result, totalCents: result.transaction?.totalCents ?? totals.grandTotalCents });
         // Refresh sync status to show pendingCount update
         posApi.getSyncStatus().then(setSyncStatus).catch(() => { });
+    };
+    const handleTenderModalClose = () => {
+        // Real till lifecycle: Tender → Processing → Success (receipt + Done) →
+        // Done/close → Idle. Finalize here so Cancel keeps the cart, while Done
+        // (or X/backdrop after success) clears it and shows the banner.
+        if (pendingCompletedSale) {
+            setLastSale(pendingCompletedSale);
+            setPendingCompletedSale(null);
+            setCartItems([]);
+            setIsMobileCartOpen(false);
+            posApi.getSyncStatus().then(setSyncStatus).catch(() => { });
+        }
+        setIsTenderModalOpen(false);
     };
     const handleApplyDiscount = (id, discountCents) => {
         setCartItems((prev) => prev.map((item) => (item.id === id ? applyDiscount(item, discountCents) : item)));
@@ -275,5 +290,5 @@ export default function App() {
                                     alignItems: "center",
                                     justifyContent: "center",
                                     color: "var(--text-primary)",
-                                }, children: _jsx(IconCart, { size: 18 }) }), _jsxs("div", { children: [_jsx("div", { style: { fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 15 }, children: formatCurrency(totals.grandTotalCents) }), _jsxs("div", { style: { fontSize: 11, color: "var(--text-muted)" }, children: [totals.itemCount, " ", totals.itemCount === 1 ? "item" : "items", syncStatus?.pendingCount ? ` · ${syncStatus.pendingCount} queued` : ""] })] })] }), _jsxs("button", { onClick: () => setIsMobileCartOpen(true), className: "pos-btn-pill pos-btn-pill-primary", children: [_jsx("span", { children: "Review Cart" }), _jsx(IconArrowRight, { size: 14 })] })] })), _jsx(SettingsPanel, { isOpen: isSettingsOpen, onClose: () => setIsSettingsOpen(false) }), _jsx(SyncDrawer, { isOpen: isDiagnosticsOpen, onClose: () => setIsDiagnosticsOpen(false), syncStatus: syncStatus, onTriggerSync: handleTriggerSync }), _jsx(TenderModal, { isOpen: isTenderModalOpen, onClose: () => setIsTenderModalOpen(false), items: cartItems, totals: totals, onCompleteSale: handleCompleteSale })] }));
+                                }, children: _jsx(IconCart, { size: 18 }) }), _jsxs("div", { children: [_jsx("div", { style: { fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 15 }, children: formatCurrency(totals.grandTotalCents) }), _jsxs("div", { style: { fontSize: 11, color: "var(--text-muted)" }, children: [totals.itemCount, " ", totals.itemCount === 1 ? "item" : "items", syncStatus?.pendingCount ? ` · ${syncStatus.pendingCount} queued` : ""] })] })] }), _jsxs("button", { onClick: () => setIsMobileCartOpen(true), className: "pos-btn-pill pos-btn-pill-primary", children: [_jsx("span", { children: "Review Cart" }), _jsx(IconArrowRight, { size: 14 })] })] })), _jsx(SettingsPanel, { isOpen: isSettingsOpen, onClose: () => setIsSettingsOpen(false) }), _jsx(SyncDrawer, { isOpen: isDiagnosticsOpen, onClose: () => setIsDiagnosticsOpen(false), syncStatus: syncStatus, onTriggerSync: handleTriggerSync }), _jsx(TenderModal, { isOpen: isTenderModalOpen, onClose: handleTenderModalClose, items: cartItems, totals: totals, onCompleteSale: handleCompleteSale })] }));
 }

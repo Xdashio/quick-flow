@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 
 export interface SelectOption {
   value: string;
@@ -12,14 +12,36 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
+  searchable?: boolean;
+  placeholder?: string;
+  searchPlaceholder?: string;
 }
 
-const MENU_MAX_HEIGHT = 240;
+const MENU_MAX_HEIGHT = 280;
 
-export function Select({ id, value, onChange, options }: Props) {
+export function Select({
+  id,
+  value,
+  onChange,
+  options,
+  searchable = true,
+  placeholder = 'Select an option',
+  searchPlaceholder = 'Search...',
+}: Props) {
   const [open, setOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Auto-enable search for lists with more than 7 items
+  const isSearchable = searchable && options.length > 7;
+
+  const filteredOptions = useMemo(() => {
+    if (!isSearchable || !searchQuery.trim()) return options;
+    const q = searchQuery.toLowerCase();
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, searchQuery, isSearchable]);
 
   useLayoutEffect(() => {
     if (!open || !rootRef.current) return;
@@ -29,7 +51,6 @@ export function Select({ id, value, onChange, options }: Props) {
       const rect = rootRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
-      // Prefer below; flip only if there isn't enough room below but there is above.
       setOpenUpward(spaceBelow < MENU_MAX_HEIGHT + 12 && spaceAbove > spaceBelow);
     };
 
@@ -41,6 +62,16 @@ export function Select({ id, value, onChange, options }: Props) {
       window.removeEventListener('scroll', updatePlacement, true);
     };
   }, [open]);
+
+  // Focus search input when menu opens
+  useEffect(() => {
+    if (open && isSearchable && searchRef.current) {
+      setTimeout(() => searchRef.current?.focus(), 30);
+    }
+    if (!open) {
+      setSearchQuery('');
+    }
+  }, [open, isSearchable]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -71,7 +102,9 @@ export function Select({ id, value, onChange, options }: Props) {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <span>{selected?.label ?? ''}</span>
+        <span className={selected ? '' : 'custom-select-placeholder'}>
+          {selected?.label ?? placeholder}
+        </span>
         <svg
           className="custom-select-chevron"
           width="12"
@@ -86,28 +119,110 @@ export function Select({ id, value, onChange, options }: Props) {
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
+
       {open && (
-        <ul
-          className={`custom-select-menu${openUpward ? ' upward' : ''}`}
-          role="listbox"
-          tabIndex={-1}
-        >
-          {options.map((option) => (
-            <li
-              key={option.value}
-              role="option"
-              aria-selected={option.value === value}
-              className={`custom-select-option${option.value === value ? ' selected' : ''}`}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              {option.label}
-            </li>
-          ))}
-        </ul>
+        <div className={`custom-select-menu${openUpward ? ' upward' : ''}`}>
+          {/* Inline Search Input */}
+          {isSearchable && (
+            <div className="custom-select-search">
+              <svg
+                className="custom-select-search-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                ref={searchRef}
+                type="text"
+                className="custom-select-search-input"
+                placeholder={searchPlaceholder}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="custom-select-search-clear"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery('');
+                    searchRef.current?.focus();
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Options List */}
+          <ul role="listbox" tabIndex={-1} className="custom-select-list">
+            {filteredOptions.length === 0 ? (
+              <li className="custom-select-empty">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                No results for &ldquo;{searchQuery}&rdquo;
+              </li>
+            ) : (
+              filteredOptions.map((option) => (
+                <li
+                  key={option.value}
+                  role="option"
+                  aria-selected={option.value === value}
+                  className={`custom-select-option${option.value === value ? ' selected' : ''}`}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                >
+                  {/* Highlight matched text */}
+                  {isSearchable && searchQuery.trim()
+                    ? highlightMatch(option.label, searchQuery)
+                    : option.label}
+                  {option.value === value && (
+                    <svg className="custom-select-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
+
+          {/* Result count when searching */}
+          {isSearchable && searchQuery && filteredOptions.length > 0 && (
+            <div className="custom-select-count">
+              {filteredOptions.length} of {options.length} results
+            </div>
+          )}
+        </div>
       )}
     </div>
+  );
+}
+
+/** Wrap matched substring in a <mark> tag for visual highlight */
+function highlightMatch(label: string, query: string): React.ReactNode {
+  const idx = label.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return label;
+  return (
+    <>
+      {label.slice(0, idx)}
+      <mark className="custom-select-highlight">{label.slice(idx, idx + query.length)}</mark>
+      {label.slice(idx + query.length)}
+    </>
   );
 }

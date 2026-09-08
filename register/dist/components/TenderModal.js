@@ -21,23 +21,37 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
     const [isProcessing, setIsProcessing] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
     const [lastReceipt, setLastReceipt] = useState(null);
+    // Frozen copy of the sale at the moment payment succeeds. The receipt,
+    // totals banner and Done state must render from this — never from the
+    // live cart props, which are cleared when the sale finalizes.
+    const [saleSnapshot, setSaleSnapshot] = useState(null);
     const customInputRef = useRef(null);
-    // Reset states when modal opens
+    const wasOpenRef = useRef(false);
+    // Reset only on the closed → open transition. Must NOT depend on
+    // totals.grandTotalCents: the parent clears the cart after a successful
+    // sale, and re-running this reset would wipe isSuccess + receipt and
+    // leave the modal looking like a fresh empty tender.
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && !wasOpenRef.current) {
+            setPaymentMethod("cash");
             setCashTenderedCents(totals.grandTotalCents);
             setRawInput(totals.grandTotalCents ? (totals.grandTotalCents / 100).toFixed(0) : "");
             setErrorMsg(null);
             setIsSuccess(false);
             setLastReceipt(null);
+            setSaleSnapshot(null);
             setIsProcessing(false);
             setStkPending(false);
             setStkCountdown(60);
+            setStkStatusText("Waiting for customer PIN...");
+            setPhoneNumber("");
+            setMpesaTillCode("");
             pollAbortRef.current = false;
             if (countdownTimerRef.current)
                 clearInterval(countdownTimerRef.current);
         }
-    }, [isOpen, totals.grandTotalCents]);
+        wasOpenRef.current = isOpen;
+    }, [isOpen]);
     // Clean up countdown on unmount
     useEffect(() => {
         return () => {
@@ -48,10 +62,19 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
     }, []);
     if (!isOpen)
         return null;
-    const changeDueCents = Math.max(0, cashTenderedCents - totals.grandTotalCents);
-    const isExactOrMore = cashTenderedCents >= totals.grandTotalCents;
-    const isBelowTotal = cashTenderedCents > 0 && cashTenderedCents < totals.grandTotalCents;
-    const isZeroItems = items.length === 0;
+    // After success, freeze the UI on the snapshot so clearing the live cart
+    // cannot turn the receipt back into an empty "0 items / KES 0.00" tender.
+    const displayItems = isSuccess && saleSnapshot ? saleSnapshot.items : items;
+    const displayTotals = isSuccess && saleSnapshot ? saleSnapshot.totals : totals;
+    const displayCashTendered = isSuccess && saleSnapshot ? saleSnapshot.cashTenderedCents : cashTenderedCents;
+    const displayPhone = isSuccess && saleSnapshot ? saleSnapshot.phoneNumber : phoneNumber;
+    const displayTillCode = isSuccess && saleSnapshot ? saleSnapshot.tillCode : mpesaTillCode;
+    const displayMethod = isSuccess && saleSnapshot ? saleSnapshot.paymentMethod : paymentMethod;
+    const changeDueCents = Math.max(0, displayCashTendered - displayTotals.grandTotalCents);
+    const isExactOrMore = displayCashTendered >= displayTotals.grandTotalCents;
+    const isBelowTotal = displayCashTendered > 0 && displayCashTendered < displayTotals.grandTotalCents;
+    const isZeroItems = displayItems.length === 0;
+    const inputsLocked = isSuccess || stkPending || isProcessing;
     const MAX_CASH_SHILLINGS = 999_999;
     const handleQuickCash = (amountShillings) => {
         const cents = amountShillings * 100;
@@ -94,6 +117,15 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
         setErrorMsg(null);
         try {
             const result = await completeCashSale(items, totals, cashTenderedCents);
+            setSaleSnapshot({
+                items: [...items],
+                totals: { ...totals },
+                paymentMethod: "cash",
+                cashTenderedCents,
+                changeDueCents: Math.max(0, cashTenderedCents - totals.grandTotalCents),
+                phoneNumber: "",
+                tillCode: "",
+            });
             setIsSuccess(true);
             setLastReceipt(result);
             onCompleteSale(result);
@@ -153,6 +185,15 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
             }
             if (pollResult.status === "captured") {
                 setStkPending(false);
+                setSaleSnapshot({
+                    items: [...items],
+                    totals: { ...totals },
+                    paymentMethod: "mpesa_stk",
+                    cashTenderedCents: totals.grandTotalCents,
+                    changeDueCents: 0,
+                    phoneNumber,
+                    tillCode: "",
+                });
                 setIsSuccess(true);
                 setLastReceipt(pollResult.receipt);
                 onCompleteSale({
@@ -206,6 +247,15 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
         setErrorMsg(null);
         try {
             const result = await completeMpesaTillSale(items, totals, code);
+            setSaleSnapshot({
+                items: [...items],
+                totals: { ...totals },
+                paymentMethod: "mpesa_till",
+                cashTenderedCents: totals.grandTotalCents,
+                changeDueCents: 0,
+                phoneNumber: "",
+                tillCode: code,
+            });
             setIsSuccess(true);
             setLastReceipt(result);
             onCompleteSale(result);
@@ -287,19 +337,21 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "center",
-                            }, children: [_jsxs("div", { children: [_jsx("span", { style: { fontSize: 12, color: "var(--text-muted)" }, children: "Total Payable" }), _jsxs("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }, children: [totals.itemCount, " items \u00B7 incl. VAT"] }), items.length > 0 && (_jsx("div", { style: { fontSize: 10, color: "var(--text-muted)", marginTop: 4, maxWidth: 220, lineHeight: 1.4 }, children: items.map((i) => `${i.name} x ${i.quantity}`).join(", ").substring(0, 80) }))] }), _jsx("span", { style: {
+                            }, children: [_jsxs("div", { children: [_jsx("span", { style: { fontSize: 12, color: "var(--text-muted)" }, children: "Total Payable" }), _jsxs("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }, children: [displayTotals.itemCount, " items \u00B7 incl. VAT"] }), displayItems.length > 0 && (_jsx("div", { style: { fontSize: 10, color: "var(--text-muted)", marginTop: 4, maxWidth: 220, lineHeight: 1.4 }, children: displayItems.map((i) => `${i.name} x ${i.quantity}`).join(", ").substring(0, 80) }))] }), _jsx("span", { style: {
                                         fontFamily: "var(--font-mono)",
                                         fontSize: 26,
                                         fontWeight: 800,
                                         letterSpacing: "-0.03em",
                                         color: "var(--text-primary)",
-                                    }, children: formatCurrency(totals.grandTotalCents) })] }), _jsx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }, children: [
+                                    }, children: formatCurrency(displayTotals.grandTotalCents) })] }), _jsx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }, children: [
                                 { id: "cash", label: "Cash", icon: _jsx(IconCash, { size: 16 }) },
                                 { id: "mpesa_stk", label: "M-Pesa STK", icon: _jsx(IconPhone, { size: 16 }) },
                                 { id: "mpesa_till", label: `Till ${TILL_NUMBER}`, icon: _jsx(IconPhone, { size: 16 }) },
                             ].map((method) => {
-                                const active = paymentMethod === method.id;
-                                return (_jsxs("button", { disabled: stkPending || isProcessing, onClick: () => {
+                                const active = displayMethod === method.id;
+                                return (_jsxs("button", { disabled: inputsLocked, onClick: () => {
+                                        if (isSuccess)
+                                            return;
                                         setPaymentMethod(method.id);
                                         setErrorMsg(null);
                                     }, style: {
@@ -312,16 +364,16 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                         backgroundColor: active ? "var(--accent-primary)" : "var(--bg-surface-elevated)",
                                         color: active ? "var(--accent-primary-text)" : "var(--text-secondary)",
                                         border: `1px solid ${active ? "transparent" : "var(--border-subtle)"}`,
-                                        cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
+                                        cursor: inputsLocked ? "not-allowed" : "pointer",
                                         fontSize: 12,
                                         fontWeight: 600,
                                         boxShadow: "none",
                                         transition: "all 0.18s var(--ease-spring)",
-                                        opacity: stkPending || isProcessing ? 0.6 : 1,
+                                        opacity: inputsLocked ? 0.6 : 1,
                                     }, children: [method.icon, method.label] }, method.id));
-                            }) }), paymentMethod === "cash" && (_jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 14 }, children: [_jsxs("div", { children: [_jsx("label", { style: { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }, children: "Quick Select (KES)" }), _jsxs("div", { style: { display: "flex", gap: 6 }, children: [[500, 1000, 2000, 5000].map((shillings) => {
-                                                    const isActive = cashTenderedCents === shillings * 100;
-                                                    return (_jsx("button", { onClick: () => handleQuickCash(shillings), style: {
+                            }) }), displayMethod === "cash" && (_jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 14 }, children: [_jsxs("div", { children: [_jsx("label", { style: { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }, children: "Quick Select (KES)" }), _jsxs("div", { style: { display: "flex", gap: 6 }, children: [[500, 1000, 2000, 5000].map((shillings) => {
+                                                    const isActive = displayCashTendered === shillings * 100;
+                                                    return (_jsx("button", { onClick: () => handleQuickCash(shillings), disabled: isSuccess, style: {
                                                             flex: 1,
                                                             padding: "8px 0",
                                                             fontFamily: "var(--font-mono)",
@@ -331,24 +383,28 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                                             border: `1px solid ${isActive ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
                                                             borderRadius: "var(--radius-md)",
                                                             color: isActive ? "var(--accent-primary)" : "var(--text-secondary)",
-                                                            cursor: "pointer",
+                                                            cursor: isSuccess ? "not-allowed" : "pointer",
+                                                            opacity: isSuccess ? 0.6 : 1,
                                                             transition: "all 0.18s var(--ease-spring)",
                                                         }, children: shillings >= 1000 ? `${shillings / 1000}K` : shillings }, shillings));
                                                 }), _jsx("button", { onClick: () => {
+                                                        if (isSuccess)
+                                                            return;
                                                         const exact = totals.grandTotalCents;
                                                         setCashTenderedCents(exact);
                                                         setRawInput((exact / 100).toFixed(0));
                                                         setErrorMsg(null);
-                                                    }, style: {
+                                                    }, disabled: isSuccess, style: {
                                                         flex: 1,
                                                         padding: "8px 0",
                                                         fontSize: 11,
                                                         fontWeight: 700,
-                                                        backgroundColor: cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary-bg)" : "var(--bg-surface-elevated)",
-                                                        border: `1px solid ${cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
+                                                        backgroundColor: displayCashTendered === displayTotals.grandTotalCents ? "var(--accent-primary-bg)" : "var(--bg-surface-elevated)",
+                                                        border: `1px solid ${displayCashTendered === displayTotals.grandTotalCents ? "var(--accent-primary-border)" : "var(--border-subtle)"}`,
                                                         borderRadius: "var(--radius-md)",
-                                                        color: cashTenderedCents === totals.grandTotalCents ? "var(--accent-primary)" : "var(--text-muted)",
-                                                        cursor: "pointer",
+                                                        color: displayCashTendered === displayTotals.grandTotalCents ? "var(--accent-primary)" : "var(--text-muted)",
+                                                        cursor: isSuccess ? "not-allowed" : "pointer",
+                                                        opacity: isSuccess ? 0.6 : 1,
                                                         transition: "all 0.18s var(--ease-spring)",
                                                         letterSpacing: "0.01em",
                                                     }, children: "Exact" })] })] }), _jsxs("div", { children: [_jsx("label", { htmlFor: "cash-tendered-input", style: {
@@ -372,7 +428,7 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                                         pointerEvents: "none",
                                                         userSelect: "none",
                                                         transition: "color 0.2s ease",
-                                                    }, children: "KES" }), _jsx("input", { id: "cash-tendered-input", ref: customInputRef, type: "text", inputMode: "decimal", value: rawInput, onChange: handleCustomInputChange, onBlur: handleCustomInputBlur, onFocus: (e) => {
+                                                    }, children: "KES" }), _jsx("input", { id: "cash-tendered-input", ref: customInputRef, type: "text", inputMode: "decimal", value: isSuccess ? (displayCashTendered / 100).toFixed(0) : rawInput, onChange: handleCustomInputChange, onBlur: handleCustomInputBlur, disabled: isSuccess, onFocus: (e) => {
                                                         e.currentTarget.select();
                                                         e.currentTarget.style.borderColor = isBelowTotal
                                                             ? "var(--accent-rose)"
@@ -392,7 +448,7 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                                         border: `1px solid ${isBelowTotal ? "var(--accent-rose-border)" : "var(--border-subtle)"}`,
                                                         borderRadius: "var(--radius-md)",
                                                         outline: "none",
-                                                    } })] }), isBelowTotal && (_jsxs("div", { style: {
+                                                    } })] }), isBelowTotal && !isSuccess && (_jsxs("div", { style: {
                                                 display: "flex",
                                                 alignItems: "center",
                                                 gap: 5,
@@ -400,7 +456,7 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                                 fontSize: 11.5,
                                                 fontWeight: 600,
                                                 color: "var(--accent-rose)",
-                                            }, children: ["Short by ", formatCurrency(totals.grandTotalCents - cashTenderedCents)] }))] }), _jsxs("div", { style: {
+                                            }, children: ["Short by ", formatCurrency(displayTotals.grandTotalCents - displayCashTendered)] }))] }), _jsxs("div", { style: {
                                         display: "grid",
                                         gridTemplateColumns: "1fr 1fr",
                                         gap: 12,
@@ -410,13 +466,13 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                         border: `1px solid ${changeDueCents > 0
                                             ? "var(--accent-sage-border)"
                                             : "var(--border-subtle)"}`,
-                                    }, children: [_jsxs("div", { children: [_jsx("span", { style: { fontSize: 11, color: "var(--text-muted)" }, children: "Tendered" }), _jsx("div", { style: { fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 800, marginTop: 3 }, children: formatCurrency(cashTenderedCents) })] }), _jsxs("div", { style: { textAlign: "right" }, children: [_jsx("span", { style: { fontSize: 11, color: "var(--text-muted)" }, children: "Change Due" }), _jsx("div", { style: {
+                                    }, children: [_jsxs("div", { children: [_jsx("span", { style: { fontSize: 11, color: "var(--text-muted)" }, children: "Tendered" }), _jsx("div", { style: { fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 800, marginTop: 3 }, children: formatCurrency(displayCashTendered) })] }), _jsxs("div", { style: { textAlign: "right" }, children: [_jsx("span", { style: { fontSize: 11, color: "var(--text-muted)" }, children: "Change Due" }), _jsx("div", { style: {
                                                         fontFamily: "var(--font-mono)",
                                                         fontSize: 16,
                                                         fontWeight: 800,
                                                         marginTop: 3,
                                                         color: changeDueCents > 0 ? "var(--accent-sage)" : "var(--text-muted)",
-                                                    }, children: formatCurrency(changeDueCents) })] })] }), _jsxs("div", { style: { display: "flex", gap: 8 }, children: [_jsx("button", { onClick: handleNoSaleDrawer, type: "button", style: {
+                                                    }, children: formatCurrency(changeDueCents) })] })] }), _jsxs("div", { style: { display: "flex", gap: 8 }, children: [_jsx("button", { onClick: handleNoSaleDrawer, type: "button", disabled: isSuccess, style: {
                                                 flex: 1,
                                                 padding: "8px 12px",
                                                 borderRadius: "var(--radius-pill)",
@@ -425,15 +481,18 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                                 color: "var(--text-secondary)",
                                                 fontSize: 11,
                                                 fontWeight: 600,
-                                                cursor: "pointer",
+                                                cursor: isSuccess ? "not-allowed" : "pointer",
+                                                opacity: isSuccess ? 0.5 : 1,
                                             }, children: "No-Sale Drawer" }), _jsx("button", { onClick: async () => {
+                                                if (isSuccess)
+                                                    return;
                                                 try {
                                                     await openDrawer({ reason: "manager_override", amountCents: 0 });
                                                 }
                                                 catch (e) {
                                                     setErrorMsg(e.message);
                                                 }
-                                            }, type: "button", style: {
+                                            }, type: "button", disabled: isSuccess, style: {
                                                 flex: 1,
                                                 padding: "8px 12px",
                                                 borderRadius: "var(--radius-pill)",
@@ -442,8 +501,9 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                                 color: "var(--text-secondary)",
                                                 fontSize: 11,
                                                 fontWeight: 600,
-                                                cursor: "pointer",
-                                            }, children: "Manager Override" })] })] })), paymentMethod === "mpesa_stk" && (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: 14 }, children: !stkPending ? (_jsx(_Fragment, { children: _jsxs("div", { children: [_jsx("label", { style: { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }, children: "Customer Mobile Number" }), _jsx("input", { type: "tel", value: phoneNumber, onChange: (e) => setPhoneNumber(e.target.value), placeholder: "e.g. 0712345678 or 254712345678", disabled: isProcessing, style: {
+                                                cursor: isSuccess ? "not-allowed" : "pointer",
+                                                opacity: isSuccess ? 0.5 : 1,
+                                            }, children: "Manager Override" })] })] })), displayMethod === "mpesa_stk" && (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: 14 }, children: !stkPending && !isSuccess ? (_jsx(_Fragment, { children: _jsxs("div", { children: [_jsx("label", { style: { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }, children: "Customer Mobile Number" }), _jsx("input", { type: "tel", value: phoneNumber, onChange: (e) => setPhoneNumber(e.target.value), placeholder: "e.g. 0712345678 or 254712345678", disabled: isProcessing, style: {
                                                 width: "100%",
                                                 height: 48,
                                                 padding: "0 16px",
@@ -454,7 +514,7 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                                 border: "1px solid var(--border-subtle)",
                                                 borderRadius: "var(--radius-md)",
                                                 outline: "none",
-                                            } }), _jsxs("div", { style: { fontSize: 11, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.45 }, children: ["Customer will receive an instant prompt on their phone to enter their M-Pesa PIN for ", formatCurrency(totals.grandTotalCents), "."] })] }) })) : (_jsxs("div", { style: {
+                                            } }), _jsxs("div", { style: { fontSize: 11, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.45 }, children: ["Customer will receive an instant prompt on their phone to enter their M-Pesa PIN for ", formatCurrency(displayTotals.grandTotalCents), "."] })] }) })) : stkPending ? (_jsxs("div", { style: {
                                     padding: 20,
                                     borderRadius: "var(--radius-lg)",
                                     backgroundColor: "var(--bg-surface-elevated)",
@@ -474,7 +534,7 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                             justifyContent: "center",
                                             color: "var(--accent-primary)",
                                             animation: "spin 2s linear infinite",
-                                        }, children: _jsx(IconSync, { size: 22 }) }), _jsxs("div", { children: [_jsx("div", { style: { fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }, children: stkStatusText }), _jsxs("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }, children: ["Phone: ", phoneNumber, " \u00B7 Amount: ", formatCurrency(totals.grandTotalCents)] })] }), _jsxs("div", { style: {
+                                        }, children: _jsx(IconSync, { size: 22 }) }), _jsxs("div", { children: [_jsx("div", { style: { fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }, children: stkStatusText }), _jsxs("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }, children: ["Phone: ", displayPhone, " \u00B7 Amount: ", formatCurrency(displayTotals.grandTotalCents)] })] }), _jsxs("div", { style: {
                                             fontSize: 12,
                                             fontFamily: "var(--font-mono)",
                                             fontWeight: 700,
@@ -493,7 +553,14 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                             fontSize: 12,
                                             fontWeight: 600,
                                             cursor: "pointer",
-                                        }, children: "Cancel STK Push" })] })) })), paymentMethod === "mpesa_till" && (_jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 14 }, children: [_jsxs("div", { style: {
+                                        }, children: "Cancel STK Push" })] })) : (_jsxs("div", { style: {
+                                    padding: "12px 16px",
+                                    borderRadius: "var(--radius-md)",
+                                    backgroundColor: "var(--bg-surface-elevated)",
+                                    border: "1px solid var(--border-subtle)",
+                                    fontSize: 12,
+                                    color: "var(--text-secondary)",
+                                }, children: ["M-Pesa STK paid \u00B7 ", displayPhone, " \u00B7 ", formatCurrency(displayTotals.grandTotalCents)] })) })), displayMethod === "mpesa_till" && (_jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 14 }, children: [_jsxs("div", { style: {
                                         padding: "16px 20px",
                                         borderRadius: "var(--radius-lg)",
                                         backgroundColor: "var(--accent-primary-bg)",
@@ -503,7 +570,8 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                         alignItems: "center",
                                         textAlign: "center",
                                         gap: 4,
-                                    }, children: [_jsx("span", { style: { fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-primary)" }, children: "Lipa na M-Pesa Buy Goods Till" }), _jsx("span", { style: { fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "0.04em" }, children: TILL_NUMBER }), _jsxs("span", { style: { fontSize: 12, color: "var(--text-secondary)" }, children: ["Instruct customer to pay ", formatCurrency(totals.grandTotalCents), " to Till ", TILL_NUMBER] })] }), _jsxs("div", { children: [_jsx("label", { style: { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }, children: "M-Pesa Transaction Code" }), _jsx("input", { type: "text", value: mpesaTillCode, onChange: (e) => setMpesaTillCode(e.target.value.toUpperCase()), placeholder: "e.g. QHN7ACKQOP", maxLength: 14, style: {
+                                    }, children: [_jsx("span", { style: { fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-primary)" }, children: "Lipa na M-Pesa Buy Goods Till" }), _jsx("span", { style: { fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "0.04em" }, children: TILL_NUMBER }), _jsxs("span", { style: { fontSize: 12, color: "var(--text-secondary)" }, children: ["Instruct customer to pay ", formatCurrency(displayTotals.grandTotalCents), " to Till ", TILL_NUMBER] })] }), _jsxs("div", { children: [_jsx("label", { style: { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }, children: "M-Pesa Transaction Code" }), _jsx("input", { type: "text", value: displayTillCode, onChange: (e) => { if (!isSuccess)
+                                                setMpesaTillCode(e.target.value.toUpperCase()); }, placeholder: "e.g. QHN7ACKQOP", maxLength: 14, disabled: isSuccess, style: {
                                                 width: "100%",
                                                 height: 48,
                                                 padding: "0 16px",
@@ -536,14 +604,14 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                         color: "var(--bg-app)",
                                         textAlign: "center",
                                         padding: "14px 16px 12px",
-                                    }, children: [_jsxs("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 2 }, children: [_jsx(IconCheck, { size: 16 }), _jsx("span", { style: { fontWeight: 800, fontSize: 14, letterSpacing: "0.01em" }, children: "Sale Complete" })] }), _jsx("div", { style: { fontSize: 11, opacity: 0.85 }, children: new Date().toLocaleString("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "medium", timeStyle: "short" }) })] }), _jsx("div", { style: { padding: "12px 16px", borderBottom: "1px dashed var(--border-subtle)" }, children: items.map((item) => (_jsxs("div", { style: {
+                                    }, children: [_jsxs("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 2 }, children: [_jsx(IconCheck, { size: 16 }), _jsx("span", { style: { fontWeight: 800, fontSize: 14, letterSpacing: "0.01em" }, children: "Sale Complete" })] }), _jsx("div", { style: { fontSize: 11, opacity: 0.85 }, children: new Date().toLocaleString("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "medium", timeStyle: "short" }) })] }), _jsx("div", { style: { padding: "12px 16px", borderBottom: "1px dashed var(--border-subtle)" }, children: displayItems.map((item) => (_jsxs("div", { style: {
                                             display: "flex",
                                             justifyContent: "space-between",
                                             alignItems: "baseline",
                                             gap: 8,
                                             fontSize: 12,
                                             padding: "3px 0",
-                                        }, children: [_jsxs("span", { style: { flex: 1, color: "var(--text-primary)", fontWeight: 500 }, children: [item.name, item.quantity > 1 && (_jsxs("span", { style: { color: "var(--text-muted)", fontWeight: 400 }, children: [" x", item.quantity] }))] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }, children: formatCurrency(item.lineTotalCents) })] }, item.id))) }), _jsxs("div", { style: { padding: "10px 16px", borderBottom: "1px dashed var(--border-subtle)", display: "flex", flexDirection: "column", gap: 4 }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }, children: [_jsx("span", { children: "Subtotal" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(totals.subtotalCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }, children: [_jsx("span", { children: "VAT" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(totals.totalTaxCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }, children: [_jsx("span", { children: "Total" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(totals.grandTotalCents) })] })] }), _jsxs("div", { style: { padding: "10px 16px", display: "flex", flexDirection: "column", gap: 4 }, children: [paymentMethod === "cash" && (_jsxs(_Fragment, { children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsx("span", { children: "Cash Tendered" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(cashTenderedCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "var(--accent-sage)" }, children: [_jsx("span", { children: "Change Due" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(changeDueCents) })] })] })), paymentMethod === "mpesa_stk" && (_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsxs("span", { children: ["M-Pesa STK \u2014 ", phoneNumber] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }, children: formatCurrency(totals.grandTotalCents) })] })), paymentMethod === "mpesa_till" && (_jsxs(_Fragment, { children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsxs("span", { children: ["M-Pesa Till ", TILL_NUMBER] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }, children: formatCurrency(totals.grandTotalCents) })] }), mpesaTillCode && (_jsxs("div", { style: { fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }, children: ["Ref: ", mpesaTillCode] }))] }))] })] }))] }), _jsxs("div", { style: {
+                                        }, children: [_jsxs("span", { style: { flex: 1, color: "var(--text-primary)", fontWeight: 500 }, children: [item.name, item.quantity > 1 && (_jsxs("span", { style: { color: "var(--text-muted)", fontWeight: 400 }, children: [" x", item.quantity] }))] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }, children: formatCurrency(item.lineTotalCents) })] }, item.id))) }), _jsxs("div", { style: { padding: "10px 16px", borderBottom: "1px dashed var(--border-subtle)", display: "flex", flexDirection: "column", gap: 4 }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }, children: [_jsx("span", { children: "Subtotal" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(displayTotals.subtotalCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }, children: [_jsx("span", { children: "VAT" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(displayTotals.totalTaxCents) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginTop: 2 }, children: [_jsx("span", { children: "Total" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(displayTotals.grandTotalCents) })] })] }), _jsxs("div", { style: { padding: "10px 16px", display: "flex", flexDirection: "column", gap: 4 }, children: [displayMethod === "cash" && (_jsxs(_Fragment, { children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsx("span", { children: "Cash Tendered" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(displayCashTendered) })] }), _jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "var(--accent-sage)" }, children: [_jsx("span", { children: "Change Due" }), _jsx("span", { style: { fontFamily: "var(--font-mono)" }, children: formatCurrency(changeDueCents) })] })] })), displayMethod === "mpesa_stk" && (_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsxs("span", { children: ["M-Pesa STK \u2014 ", displayPhone] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }, children: formatCurrency(displayTotals.grandTotalCents) })] })), displayMethod === "mpesa_till" && (_jsxs(_Fragment, { children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }, children: [_jsxs("span", { children: ["M-Pesa Till ", TILL_NUMBER] }), _jsx("span", { style: { fontFamily: "var(--font-mono)", color: "var(--accent-sage)", fontWeight: 700 }, children: formatCurrency(displayTotals.grandTotalCents) })] }), displayTillCode && (_jsxs("div", { style: { fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }, children: ["Ref: ", displayTillCode] }))] }))] })] }))] }), _jsxs("div", { style: {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "flex-end",
@@ -561,7 +629,7 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                 fontWeight: 600,
                                 cursor: stkPending || isProcessing ? "not-allowed" : "pointer",
                                 opacity: stkPending || isProcessing ? 0.6 : 1,
-                            }, children: "Cancel" }), paymentMethod === "cash" && (_jsx("button", { onClick: isSuccess ? onClose : handleCashConfirm, disabled: isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems)), className: "pos-btn-pill pos-btn-pill-primary", style: {
+                            }, children: "Cancel" }), displayMethod === "cash" && (_jsx("button", { onClick: isSuccess ? onClose : handleCashConfirm, disabled: isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems)), className: "pos-btn-pill pos-btn-pill-primary", style: {
                                 padding: "10px 24px",
                                 backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
                                 opacity: (isProcessing || (!isSuccess && (!isExactOrMore || isZeroItems))) ? 0.5 : 1,
@@ -571,17 +639,17 @@ export const TenderModal = ({ isOpen, onClose, items, totals, onCompleteSale, })
                                 gap: 8,
                                 fontSize: 13,
                                 fontWeight: 700,
-                            }, children: isSuccess ? (_jsxs(_Fragment, { children: [_jsx(IconCheck, { size: 16 }), _jsx("span", { children: "Done" })] })) : isProcessing ? (_jsx("span", { children: "Processing..." })) : (_jsx("span", { children: "Complete Sale (Cash)" })) })), paymentMethod === "mpesa_stk" && !stkPending && (_jsx("button", { onClick: handleStkInitiate, disabled: isProcessing || isZeroItems || !phoneNumber.trim(), className: "pos-btn-pill pos-btn-pill-primary", style: {
+                            }, children: isSuccess ? (_jsxs(_Fragment, { children: [_jsx(IconCheck, { size: 16 }), _jsx("span", { children: "Done" })] })) : isProcessing ? (_jsx("span", { children: "Processing..." })) : (_jsx("span", { children: "Complete Sale (Cash)" })) })), displayMethod === "mpesa_stk" && !stkPending && (_jsx("button", { onClick: isSuccess ? onClose : handleStkInitiate, disabled: isProcessing || (!isSuccess && (isZeroItems || !phoneNumber.trim())), className: "pos-btn-pill pos-btn-pill-primary", style: {
                                 padding: "10px 24px",
-                                backgroundColor: "var(--accent-primary)",
-                                opacity: (isProcessing || isZeroItems || !phoneNumber.trim()) ? 0.5 : 1,
-                                cursor: (isProcessing || isZeroItems || !phoneNumber.trim()) ? "not-allowed" : "pointer",
+                                backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
+                                opacity: (isProcessing || (!isSuccess && (isZeroItems || !phoneNumber.trim()))) ? 0.5 : 1,
+                                cursor: (isProcessing || (!isSuccess && (isZeroItems || !phoneNumber.trim()))) ? "not-allowed" : "pointer",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 8,
                                 fontSize: 13,
                                 fontWeight: 700,
-                            }, children: isProcessing ? _jsx("span", { children: "Sending..." }) : _jsx("span", { children: "Send STK Push" }) })), paymentMethod === "mpesa_till" && (_jsx("button", { onClick: isSuccess ? onClose : handleTillConfirm, disabled: isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8)), className: "pos-btn-pill pos-btn-pill-primary", style: {
+                            }, children: isSuccess ? (_jsxs(_Fragment, { children: [_jsx(IconCheck, { size: 16 }), _jsx("span", { children: "Done" })] })) : isProcessing ? _jsx("span", { children: "Sending..." }) : _jsx("span", { children: "Send STK Push" }) })), displayMethod === "mpesa_till" && (_jsx("button", { onClick: isSuccess ? onClose : handleTillConfirm, disabled: isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8)), className: "pos-btn-pill pos-btn-pill-primary", style: {
                                 padding: "10px 24px",
                                 backgroundColor: isSuccess ? "var(--accent-sage)" : "var(--accent-primary)",
                                 opacity: (isProcessing || (!isSuccess && (isZeroItems || mpesaTillCode.trim().length < 8))) ? 0.5 : 1,
