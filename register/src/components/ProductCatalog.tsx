@@ -21,33 +21,19 @@ function categoryColorVar(index: number): string {
 const IMAGE_TILE_HEIGHT = 150;
 
 interface ProductImageProps {
-  product: CachedProduct;
+  name: string;
+  src: string | null;
   accentColor: string;
 }
 
-const ProductImage: React.FC<ProductImageProps> = ({ product, accentColor }) => {
-  const [src, setSrc] = useState<string | null>(null);
+// Pure presentational tile — the parent resolves every src in ONE batch IPC
+// call, so cards never each fire their own lookup (no IPC storm, no staggered
+// pop-in). decoding="async" keeps image decode off the interaction path.
+const ProductImage: React.FC<ProductImageProps> = ({ name, src, accentColor }) => {
+  const [failed, setFailed] = useState(false);
+  const showImg = Boolean(src) && !failed;
 
-  useEffect(() => {
-    if (!product.image_key) return;
-
-    let cancelled = false;
-
-    if (typeof product.image_key === "string" && (product.image_key.startsWith("http://") || product.image_key.startsWith("https://"))) {
-      setSrc(product.image_key);
-    }
-
-    posApi.getImageLocalPath(product.id).then((localPath) => {
-      if (cancelled) return;
-      if (localPath) {
-        setSrc(localPath);
-      }
-    }).catch(() => {/* ignore */});
-
-    return () => { cancelled = true; };
-  }, [product.id, product.image_key, product.image_cached_at]);
-
-  if (!src) {
+  if (!showImg) {
     // Fallback tile for products without a photo. Plain two-letter initials
     // look identical across many real catalogs ("Basmati Rice 1kg" and
     // "Basmati Rice 2kg" both render "BR"), which is exactly the kind of
@@ -81,16 +67,18 @@ const ProductImage: React.FC<ProductImageProps> = ({ product, accentColor }) => 
           justifyContent: "center",
         }}
       >
-        {product.name || "?"}
+        {name || "?"}
       </div>
     );
   }
 
   return (
     <img
-      src={src}
-      alt={product.name}
+      src={src as string}
+      alt={name}
       loading="lazy"
+      decoding="async"
+      draggable={false}
       style={{
         width: "100%",
         height: IMAGE_TILE_HEIGHT,
@@ -104,7 +92,7 @@ const ProductImage: React.FC<ProductImageProps> = ({ product, accentColor }) => 
         border: "1px solid var(--border-subtle)",
         display: "block",
       }}
-      onError={() => setSrc(null)}
+      onError={() => setFailed(true)}
     />
   );
 };
@@ -139,6 +127,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [lowStockMap, setLowStockMap] = useState<Record<string, number>>({});
+  // productId -> resolved <img> src (remote URL or cached file:// path).
+  // Resolved ONCE per catalog load in a single batch IPC call — never per card.
+  const [imageSrcById, setImageSrcById] = useState<Record<string, string>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -171,6 +162,45 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isFilterOpen]);
 
+  // Resolve every card image in one batch: remote URLs map directly, local
+  // cache resolves via a single IPC round-trip. Runs only when the catalog
+  // itself reloads (sync), not on cart/search keystrokes.
+  useEffect(() => {
+    let cancelled = false;
+    const remote: Record<string, string> = {};
+    const needsLookup: string[] = [];
+    for (const p of products) {
+      if (
+        typeof p.image_key === "string" &&
+        (p.image_key.startsWith("http://") || p.image_key.startsWith("https://"))
+      ) {
+        remote[p.id] = p.image_key;
+      } else if (p.image_key) {
+        needsLookup.push(p.id);
+      }
+    }
+    if (needsLookup.length === 0) {
+      setImageSrcById(remote);
+      return;
+    }
+    posApi
+      .getImageLocalPaths(needsLookup)
+      .then((map) => {
+        if (cancelled) return;
+        const merged: Record<string, string> = { ...remote };
+        for (const [id, localPath] of Object.entries(map)) {
+          if (localPath) merged[id] = localPath;
+        }
+        setImageSrcById(merged);
+      })
+      .catch(() => {
+        if (!cancelled) setImageSrcById(remote);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [products]);
+
   // Stable index-based color per category id, independent of filtering/sort.
   const categoryColorById = React.useMemo(() => {
     const map: Record<string, string> = {};
@@ -194,25 +224,27 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }
   };
 
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = React.useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    const matchesQuery =
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.sku.toLowerCase().includes(q) ||
-      (p.barcode && p.barcode.includes(q));
+    return products.filter((p) => {
+      const matchesQuery =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.barcode && p.barcode.includes(q));
 
-    if (!matchesQuery) return false;
+      if (!matchesQuery) return false;
 
-    if (selectedCategoryId !== "all" && p.category_id !== selectedCategoryId) return false;
+      if (selectedCategoryId !== "all" && p.category_id !== selectedCategoryId) return false;
 
-    if (selectedFilter === "all") return true;
-    if (selectedFilter === "weighed") return Boolean(p.is_weighed);
-    if (selectedFilter === "standard") return (p.tax_category_rate_bp ?? 0) >= 1600;
-    if (selectedFilter === "zero_exempt") return (p.tax_category_rate_bp ?? 0) === 0;
+      if (selectedFilter === "all") return true;
+      if (selectedFilter === "weighed") return Boolean(p.is_weighed);
+      if (selectedFilter === "standard") return (p.tax_category_rate_bp ?? 0) >= 1600;
+      if (selectedFilter === "zero_exempt") return (p.tax_category_rate_bp ?? 0) === 0;
 
-    return true;
-  });
+      return true;
+    });
+  }, [products, searchQuery, selectedCategoryId, selectedFilter]);
 
   const activeFilterLabel = TAX_FILTERS.find((f) => f.id === selectedFilter)?.label ?? "All types";
 
@@ -539,7 +571,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   )}
                   <div className="pos-product-card-inner">
                     <div style={{ marginBottom: 12, flex: 1 }}>
-                      <ProductImage product={p} accentColor={accentColor} />
+                      <ProductImage name={p.name} src={imageSrcById[p.id] ?? null} accentColor={accentColor} />
                       <h4
                         style={{
                           fontSize: 13.5,

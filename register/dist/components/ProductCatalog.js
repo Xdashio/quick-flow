@@ -16,25 +16,13 @@ function categoryColorVar(index) {
 }
 // ── Product image with local cache + placeholder ────────────────────────────
 const IMAGE_TILE_HEIGHT = 150;
-const ProductImage = ({ product, accentColor }) => {
-    const [src, setSrc] = useState(null);
-    useEffect(() => {
-        if (!product.image_key)
-            return;
-        let cancelled = false;
-        if (typeof product.image_key === "string" && (product.image_key.startsWith("http://") || product.image_key.startsWith("https://"))) {
-            setSrc(product.image_key);
-        }
-        posApi.getImageLocalPath(product.id).then((localPath) => {
-            if (cancelled)
-                return;
-            if (localPath) {
-                setSrc(localPath);
-            }
-        }).catch(() => { });
-        return () => { cancelled = true; };
-    }, [product.id, product.image_key, product.image_cached_at]);
-    if (!src) {
+// Pure presentational tile — the parent resolves every src in ONE batch IPC
+// call, so cards never each fire their own lookup (no IPC storm, no staggered
+// pop-in). decoding="async" keeps image decode off the interaction path.
+const ProductImage = ({ name, src, accentColor }) => {
+    const [failed, setFailed] = useState(false);
+    const showImg = Boolean(src) && !failed;
+    if (!showImg) {
         // Fallback tile for products without a photo. Plain two-letter initials
         // look identical across many real catalogs ("Basmati Rice 1kg" and
         // "Basmati Rice 2kg" both render "BR"), which is exactly the kind of
@@ -64,9 +52,9 @@ const ProductImage = ({ product, accentColor }) => {
                 WebkitBoxOrient: "vertical",
                 alignItems: "center",
                 justifyContent: "center",
-            }, children: product.name || "?" }));
+            }, children: name || "?" }));
     }
-    return (_jsx("img", { src: src, alt: product.name, loading: "lazy", style: {
+    return (_jsx("img", { src: src, alt: name, loading: "lazy", decoding: "async", draggable: false, style: {
             width: "100%",
             height: IMAGE_TILE_HEIGHT,
             objectFit: "contain",
@@ -78,7 +66,7 @@ const ProductImage = ({ product, accentColor }) => {
             borderLeft: `4px solid ${accentColor}`,
             border: "1px solid var(--border-subtle)",
             display: "block",
-        }, onError: () => setSrc(null) }));
+        }, onError: () => setFailed(true) }));
 };
 const TAX_FILTERS = [
     { id: "all", label: "All types" },
@@ -92,6 +80,9 @@ export const ProductCatalog = ({ products, categories = [], cartQuantityByProduc
     const [selectedCategoryId, setSelectedCategoryId] = useState("all");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [lowStockMap, setLowStockMap] = useState({});
+    // productId -> resolved <img> src (remote URL or cached file:// path).
+    // Resolved ONCE per catalog load in a single batch IPC call — never per card.
+    const [imageSrcById, setImageSrcById] = useState({});
     const searchInputRef = useRef(null);
     const filterRef = useRef(null);
     useEffect(() => {
@@ -122,6 +113,46 @@ export const ProductCatalog = ({ products, categories = [], cartQuantityByProduc
         document.addEventListener("mousedown", handleClick);
         return () => document.removeEventListener("mousedown", handleClick);
     }, [isFilterOpen]);
+    // Resolve every card image in one batch: remote URLs map directly, local
+    // cache resolves via a single IPC round-trip. Runs only when the catalog
+    // itself reloads (sync), not on cart/search keystrokes.
+    useEffect(() => {
+        let cancelled = false;
+        const remote = {};
+        const needsLookup = [];
+        for (const p of products) {
+            if (typeof p.image_key === "string" &&
+                (p.image_key.startsWith("http://") || p.image_key.startsWith("https://"))) {
+                remote[p.id] = p.image_key;
+            }
+            else if (p.image_key) {
+                needsLookup.push(p.id);
+            }
+        }
+        if (needsLookup.length === 0) {
+            setImageSrcById(remote);
+            return;
+        }
+        posApi
+            .getImageLocalPaths(needsLookup)
+            .then((map) => {
+            if (cancelled)
+                return;
+            const merged = { ...remote };
+            for (const [id, localPath] of Object.entries(map)) {
+                if (localPath)
+                    merged[id] = localPath;
+            }
+            setImageSrcById(merged);
+        })
+            .catch(() => {
+            if (!cancelled)
+                setImageSrcById(remote);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [products]);
     // Stable index-based color per category id, independent of filtering/sort.
     const categoryColorById = React.useMemo(() => {
         const map = {};
@@ -141,26 +172,28 @@ export const ProductCatalog = ({ products, categories = [], cartQuantityByProduc
             }
         }
     };
-    const filteredProducts = products.filter((p) => {
+    const filteredProducts = React.useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
-        const matchesQuery = !q ||
-            p.name.toLowerCase().includes(q) ||
-            p.sku.toLowerCase().includes(q) ||
-            (p.barcode && p.barcode.includes(q));
-        if (!matchesQuery)
-            return false;
-        if (selectedCategoryId !== "all" && p.category_id !== selectedCategoryId)
-            return false;
-        if (selectedFilter === "all")
+        return products.filter((p) => {
+            const matchesQuery = !q ||
+                p.name.toLowerCase().includes(q) ||
+                p.sku.toLowerCase().includes(q) ||
+                (p.barcode && p.barcode.includes(q));
+            if (!matchesQuery)
+                return false;
+            if (selectedCategoryId !== "all" && p.category_id !== selectedCategoryId)
+                return false;
+            if (selectedFilter === "all")
+                return true;
+            if (selectedFilter === "weighed")
+                return Boolean(p.is_weighed);
+            if (selectedFilter === "standard")
+                return (p.tax_category_rate_bp ?? 0) >= 1600;
+            if (selectedFilter === "zero_exempt")
+                return (p.tax_category_rate_bp ?? 0) === 0;
             return true;
-        if (selectedFilter === "weighed")
-            return Boolean(p.is_weighed);
-        if (selectedFilter === "standard")
-            return (p.tax_category_rate_bp ?? 0) >= 1600;
-        if (selectedFilter === "zero_exempt")
-            return (p.tax_category_rate_bp ?? 0) === 0;
-        return true;
-    });
+        });
+    }, [products, searchQuery, selectedCategoryId, selectedFilter]);
     const activeFilterLabel = TAX_FILTERS.find((f) => f.id === selectedFilter)?.label ?? "All types";
     return (_jsxs("div", { style: {
             display: "flex",
@@ -315,7 +348,7 @@ export const ProductCatalog = ({ products, categories = [], cartQuantityByProduc
                                         textTransform: "uppercase",
                                         padding: "2px 7px", borderRadius: "var(--radius-pill)",
                                         backgroundColor: "var(--accent-amber)", color: "#fff",
-                                    }, children: ["Low: ", stockQty] })), _jsxs("div", { className: "pos-product-card-inner", children: [_jsxs("div", { style: { marginBottom: 12, flex: 1 }, children: [_jsx(ProductImage, { product: p, accentColor: accentColor }), _jsx("h4", { style: {
+                                    }, children: ["Low: ", stockQty] })), _jsxs("div", { className: "pos-product-card-inner", children: [_jsxs("div", { style: { marginBottom: 12, flex: 1 }, children: [_jsx(ProductImage, { name: p.name, src: imageSrcById[p.id] ?? null, accentColor: accentColor }), _jsx("h4", { style: {
                                                         fontSize: 13.5,
                                                         fontWeight: 700,
                                                         lineHeight: 1.35,

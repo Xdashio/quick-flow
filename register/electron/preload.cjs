@@ -44,6 +44,8 @@ contextBridge.exposeInMainWorld("posApi", {
   // Image cache: local file path lookup and download
   getImageLocalPath: (productId) =>
     ipcRenderer.invoke("images:get-local-path", productId),
+  getImageLocalPaths: (productIds) =>
+    ipcRenderer.invoke("images:get-local-paths", productIds),
   cacheImage: (args) =>
     ipcRenderer.invoke("images:cache-image", args),
   evictImageCache: (productId) =>

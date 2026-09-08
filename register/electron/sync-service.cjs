@@ -325,18 +325,26 @@ class SyncService {
       if (productsWithImages.length > 0) {
         let cached = 0, skipped = 0, failed = 0;
         const failReasons = [];
-        // Sequential to avoid hammering the CDN; images are small so this is fast
-        for (const p of productsWithImages) {
-          try {
-            const result = await this.cacheProductImage(db, p);
-            if (result === 'cached') cached++;
-            else skipped++; // already on disk
-          } catch (imgErr) {
-            failed++;
-            // Only accumulate error details; suppress per-product spam.
-            failReasons.push(`${p.id.slice(0, 8)}: ${imgErr.message}`);
+        // Limited-concurrency pool: 3 parallel downloads instead of strictly
+        // sequential, without hammering the CDN. better-sqlite3 calls stay
+        // synchronous per call so single-threaded interleaving is safe.
+        let cursor = 0;
+        const worker = async () => {
+          while (cursor < productsWithImages.length) {
+            const p = productsWithImages[cursor++];
+            try {
+              const result = await this.cacheProductImage(db, p);
+              if (result === 'cached') cached++;
+              else skipped++; // already on disk
+            } catch (imgErr) {
+              failed++;
+              // Only accumulate error details; suppress per-product spam.
+              failReasons.push(`${p.id.slice(0, 8)}: ${imgErr.message}`);
+            }
           }
-        }
+        };
+        const poolSize = Math.min(3, productsWithImages.length);
+        await Promise.all(Array.from({ length: poolSize }, worker));
         const parts = [];
         if (cached > 0) parts.push(`${cached} downloaded`);
         if (skipped > 0) parts.push(`${skipped} already cached`);
@@ -353,6 +361,29 @@ class SyncService {
       for (const p of productsWithoutImages) {
         await this.evictProductImage(p.id);
       }
+
+      // Backfill thumbnails for originals cached before thumbs existed.
+      // Bounded per sync so a big one-time pass never blocks the main thread.
+      try {
+        const path = require("path");
+        const fs = require("fs");
+        const imagesDir = path.join(path.dirname(this.dbPath), "images");
+        const files = fs.readdirSync(imagesDir);
+        const seen = new Set();
+        let thumbMade = 0;
+        for (const f of files) {
+          if (thumbMade >= 30) break;
+          if (f.endsWith(".thumb.jpg")) continue;
+          const dot = f.lastIndexOf(".");
+          if (dot <= 0) continue;
+          const id = f.slice(0, dot);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          if (fs.existsSync(path.join(imagesDir, `${id}.thumb.jpg`))) continue;
+          if (this.ensureThumbnail(imagesDir, id)) thumbMade++;
+        }
+        if (thumbMade > 0) console.log(`[SyncService] Thumbnails — ${thumbMade} generated`);
+      } catch { /* non-fatal */ }
 
       // 5. Update sync_meta
       const setMeta = db.prepare(`
@@ -488,7 +519,48 @@ class SyncService {
       product.id,
     );
 
+    // Pre-scale a 400px card thumbnail so the register decodes KBs, not MBs.
+    // Best-effort: originals remain the fallback if this fails.
+    try {
+      this.ensureThumbnail(imagesDir, product.id);
+    } catch { /* ignore */ }
+
     return 'cached';
+  }
+
+  /**
+   * Creates <productId>.thumb.jpg (max 400px wide) from the cached original
+   * using Electron's built-in nativeImage — no extra native deps.
+   * Returns true when a thumb exists afterwards.
+   */
+  ensureThumbnail(imagesDir, productId) {
+    const path = require("path");
+    const fs = require("fs");
+    const thumbPath = path.join(imagesDir, `${productId}.thumb.jpg`);
+    if (fs.existsSync(thumbPath)) return true;
+    let nativeImage = null;
+    try {
+      nativeImage = require("electron").nativeImage;
+    } catch {
+      return false;
+    }
+    if (!nativeImage) return false;
+    const exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+    for (const ext of exts) {
+      const src = path.join(imagesDir, `${productId}${ext}`);
+      if (!fs.existsSync(src)) continue;
+      try {
+        const img = nativeImage.createFromPath(src);
+        if (img.isEmpty()) return false;
+        const size = img.getSize();
+        const target = size.width > 400 ? img.resize({ width: 400 }) : img;
+        fs.writeFileSync(thumbPath, target.toJPEG(82));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 
   /**
@@ -506,6 +578,8 @@ class SyncService {
         console.log(`[SyncService] Evicted cached image for product ${productId}`);
       }
     }
+    const thumb = path.join(imagesDir, `${productId}.thumb.jpg`);
+    if (fs.existsSync(thumb)) fs.unlinkSync(thumb);
   }
 
   getCounts(db) {

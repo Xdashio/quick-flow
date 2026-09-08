@@ -20,6 +20,7 @@ declare global {
       previewReceipt: (tx: any) => Promise<any>;
       // Image cache
       getImageLocalPath: (productId: string) => Promise<string | null>;
+      getImageLocalPaths?: (productIds: string[]) => Promise<Record<string, string | null>>;
       cacheImage: (args: { productId: string; imageKey: string; imageUrl: string }) => Promise<{ cached: boolean; localPath?: string; reason?: string }>;
       evictImageCache: (productId: string) => Promise<{ removed: number }>;
       // Backend URL config
@@ -465,6 +466,29 @@ export const posApi = {
       return window.posApi.getImageLocalPath(productId);
     }
     return null;
+  },
+
+  /**
+   * Batch version: resolves the whole catalog's image paths in ONE IPC
+   * round-trip. Falls back to per-product calls on older preloads.
+   */
+  async getImageLocalPaths(productIds: string[]): Promise<Record<string, string | null>> {
+    if (window.posApi?.getImageLocalPaths) {
+      try {
+        return await window.posApi.getImageLocalPaths(productIds);
+      } catch { /* fall through to per-product */ }
+    }
+    const out: Record<string, string | null> = {};
+    await Promise.all(
+      productIds.map(async (id) => {
+        try {
+          out[id] = await this.getImageLocalPath(id);
+        } catch {
+          out[id] = null;
+        }
+      })
+    );
+    return out;
   },
 
   /**

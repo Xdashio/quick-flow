@@ -222,16 +222,52 @@ function setupIpc() {
   /**
    * Returns the local file:// path for a cached product image, or null if not cached.
    * The renderer uses this to decide whether to show <img src="file://..."> or a placeholder.
+   * Prefers the pre-scaled .thumb.jpg (400px) so cards decode a small file
+   * instead of a multi-MB original. pathToFileURL handles spaces/special chars.
    */
-  ipcMain.handle("images:get-local-path", (_event, productId) => {
-    const exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
-    for (const ext of exts) {
+  const { pathToFileURL } = require("url");
+  const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+  const resolveImageUrl = (productId) => {
+    const thumb = path.join(imagesDir, `${productId}.thumb.jpg`);
+    if (fs.existsSync(thumb)) return pathToFileURL(thumb).href;
+    for (const ext of IMAGE_EXTS) {
       const candidate = path.join(imagesDir, `${productId}${ext}`);
       if (fs.existsSync(candidate)) {
-        return `file://${candidate}`;
+        return pathToFileURL(candidate).href;
       }
     }
     return null;
+  };
+  ipcMain.handle("images:get-local-path", (_event, productId) => {
+    return resolveImageUrl(productId);
+  });
+
+  /**
+   * Batch version: one IPC round-trip for the whole catalog instead of one
+   * per card. Single readdir + in-memory lookup, no per-product stat storm.
+   */
+  ipcMain.handle("images:get-local-paths", (_event, productIds) => {
+    const out = {};
+    try {
+      const files = new Set(fs.readdirSync(imagesDir));
+      for (const id of productIds || []) {
+        if (files.has(`${id}.thumb.jpg`)) {
+          out[id] = pathToFileURL(path.join(imagesDir, `${id}.thumb.jpg`)).href;
+          continue;
+        }
+        let found = null;
+        for (const ext of IMAGE_EXTS) {
+          if (files.has(`${id}${ext}`)) {
+            found = pathToFileURL(path.join(imagesDir, `${id}${ext}`)).href;
+            break;
+          }
+        }
+        out[id] = found;
+      }
+    } catch {
+      for (const id of productIds || []) out[id] = resolveImageUrl(id);
+    }
+    return out;
   });
 
   /**
@@ -280,7 +316,7 @@ function setupIpc() {
         db2.close();
       }
 
-      return { cached: true, localPath: `file://${destPath}` };
+      return { cached: true, localPath: pathToFileURL(destPath).href };
     } catch (err) {
       console.warn(`[images] Failed to cache image for product ${productId}:`, err.message);
       return { cached: false, reason: err.message };
@@ -299,6 +335,11 @@ function setupIpc() {
         fs.unlinkSync(p);
         removed++;
       }
+    }
+    const thumb = path.join(imagesDir, `${productId}.thumb.jpg`);
+    if (fs.existsSync(thumb)) {
+      fs.unlinkSync(thumb);
+      removed++;
     }
     return { removed };
   });

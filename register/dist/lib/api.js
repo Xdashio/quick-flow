@@ -398,6 +398,28 @@ export const posApi = {
         return null;
     },
     /**
+     * Batch version: resolves the whole catalog's image paths in ONE IPC
+     * round-trip. Falls back to per-product calls on older preloads.
+     */
+    async getImageLocalPaths(productIds) {
+        if (window.posApi?.getImageLocalPaths) {
+            try {
+                return await window.posApi.getImageLocalPaths(productIds);
+            }
+            catch { /* fall through to per-product */ }
+        }
+        const out = {};
+        await Promise.all(productIds.map(async (id) => {
+            try {
+                out[id] = await this.getImageLocalPath(id);
+            }
+            catch {
+                out[id] = null;
+            }
+        }));
+        return out;
+    },
+    /**
      * Trigger an immediate image download for a single product.
      * Used in the UI to warm the cache after a manual sync.
      */
