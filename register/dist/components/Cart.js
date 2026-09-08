@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useEffect, useRef } from "react";
 import { formatCurrency, formatTaxRate } from "../lib/cart";
-import { IconCart, IconTrash, IconClose, IconArrowRight, IconPause, IconPlay } from "./icons";
+import { IconCart, IconTrash, IconClose, IconPlus, IconMinus, IconArrowRight, IconPause, IconPlay } from "./icons";
 /**
  * Inline two-step confirmation hook.
  * Returns [isPending, arm, reset].
@@ -26,12 +26,12 @@ function useConfirm(timeout = 2000) {
         clearTimeout(timerRef.current); }, []);
     return [isPending, arm, reset];
 }
-/** Per-item inline remove confirmation */
-const CartLineItem = ({ item, onUpdateQuantity, onRemoveItem, onApplyDiscount }) => {
+/** Per-item inline remove confirmation, rendered as a flat ledger row —
+ * a bottom hairline divides items instead of each line living in its own
+ * bordered/rounded card, so a 6-item cart reads as one till roll rather
+ * than a stack of six identical SaaS cards. */
+const CartLineItem = ({ item, isLast, onUpdateQuantity, onRemoveItem }) => {
     const [confirmPending, armConfirm, resetConfirm] = useConfirm(2000);
-    const [discountOpen, setDiscountOpen] = useState(false);
-    const [discountInput, setDiscountInput] = useState("");
-    const [discountType, setDiscountType] = useState("flat");
     const handleRemoveClick = () => {
         if (confirmPending) {
             resetConfirm();
@@ -41,57 +41,39 @@ const CartLineItem = ({ item, onUpdateQuantity, onRemoveItem, onApplyDiscount })
             armConfirm();
         }
     };
-    const handleApplyDiscount = () => {
-        const val = parseFloat(discountInput);
-        if (isNaN(val) || val < 0)
-            return;
-        let cents;
-        if (discountType === "pct") {
-            const pct = Math.min(val, 100) / 100;
-            cents = Math.round(item.priceCents * item.quantity * pct);
-        }
-        else {
-            cents = Math.round(val * 100);
-        }
-        onApplyDiscount(item.id, cents);
-        setDiscountOpen(false);
-        setDiscountInput("");
-    };
-    const handleClearDiscount = () => {
-        onApplyDiscount(item.id, 0);
-        setDiscountOpen(false);
-        setDiscountInput("");
-    };
-    return (_jsx("div", { style: {
-            padding: "12px 14px",
-            borderRadius: "var(--radius-md)",
-            backgroundColor: "var(--bg-surface-elevated)",
-            border: `1px solid ${confirmPending ? "var(--accent-rose-border)" : "var(--border-subtle)"}`,
+    return (_jsxs("div", { style: {
+            padding: "12px 0",
+            borderBottom: isLast ? "none" : "1px solid var(--border-subtle)",
             display: "flex",
             flexDirection: "column",
             gap: 8,
-            transition: "border-color 0.2s ease",
-        }, children: _jsxs("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }, children: [_jsxs("div", { style: { flex: 1 }, children: [_jsx("div", { style: { fontSize: 13, fontWeight: 600, lineHeight: 1.35 }, children: item.name }), _jsxs("div", { style: {
-                                fontFamily: "var(--font-mono)",
-                                fontSize: 11,
-                                color: "var(--text-muted)",
-                                marginTop: 2,
-                            }, children: [item.sku, " \u00B7 ", formatCurrency(item.priceCents), item.isWeighed ? ` / ${item.unitType}` : ""] })] }), _jsxs("button", { onClick: handleRemoveClick, title: confirmPending ? "Click again to confirm removal" : "Remove item", style: {
-                        display: "flex",
-                        alignItems: "center",
-                        gap: confirmPending ? 5 : 0,
-                        background: confirmPending ? "var(--accent-rose-bg)" : "none",
-                        border: confirmPending ? "1px solid var(--accent-rose-border)" : "none",
-                        borderRadius: "var(--radius-pill)",
-                        color: confirmPending ? "var(--accent-rose)" : "var(--text-muted)",
-                        cursor: "pointer",
-                        padding: confirmPending ? "3px 9px 3px 7px" : "2px",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                        transition: "all 0.18s var(--ease-spring)",
-                        flexShrink: 0,
-                    }, children: [_jsx(IconClose, { size: confirmPending ? 11 : 14 }), confirmPending && _jsx("span", { children: "Remove?" })] })] }) }));
+        }, children: [_jsxs("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }, children: [_jsxs("div", { style: { flex: 1, minWidth: 0 }, children: [_jsx("div", { style: { fontSize: 13, fontWeight: 600, lineHeight: 1.35 }, children: item.name }), _jsxs("div", { style: {
+                                    fontFamily: "var(--font-mono)",
+                                    fontSize: 11,
+                                    color: "var(--text-muted)",
+                                    marginTop: 2,
+                                }, children: [item.sku, " \u00B7 ", formatCurrency(item.priceCents), item.isWeighed ? ` / ${item.unitType}` : ""] })] }), _jsxs("button", { onClick: handleRemoveClick, title: confirmPending ? "Click again to confirm removal" : "Remove item", style: {
+                            display: "flex",
+                            alignItems: "center",
+                            gap: confirmPending ? 5 : 0,
+                            background: confirmPending ? "var(--accent-rose-bg)" : "none",
+                            border: confirmPending ? "1px solid var(--accent-rose-border)" : "none",
+                            borderRadius: "var(--radius-pill)",
+                            color: confirmPending ? "var(--accent-rose)" : "var(--text-muted)",
+                            cursor: "pointer",
+                            padding: confirmPending ? "3px 9px 3px 7px" : "2px",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                            transition: "all 0.18s var(--ease-spring)",
+                            flexShrink: 0,
+                        }, children: [_jsx(IconClose, { size: confirmPending ? 11 : 14 }), confirmPending && _jsx("span", { children: "Remove?" })] })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" }, children: [item.isWeighed ? (_jsxs("span", { style: { fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }, children: [item.quantity, " ", item.unitType] })) : (_jsxs("div", { className: "pos-stepper-capsule", children: [_jsx("button", { className: "pos-stepper-btn", onClick: () => (item.quantity <= 1 ? handleRemoveClick() : onUpdateQuantity(item.id, item.quantity - 1)), "aria-label": "Decrease quantity", children: _jsx(IconMinus, { size: 13 }) }), _jsx("span", { style: {
+                                    minWidth: 24,
+                                    textAlign: "center",
+                                    fontFamily: "var(--font-mono)",
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                }, children: item.quantity }), _jsx("button", { className: "pos-stepper-btn", onClick: () => onUpdateQuantity(item.id, item.quantity + 1), "aria-label": "Increase quantity", children: _jsx(IconPlus, { size: 13 }) })] })), _jsxs("div", { style: { textAlign: "right" }, children: [item.discountCents > 0 && (_jsxs("div", { style: { fontSize: 10.5, color: "var(--accent-primary)", fontFamily: "var(--font-mono)" }, children: ["\u2212 ", formatCurrency(item.discountCents)] })), _jsx("span", { style: { fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 14 }, children: formatCurrency(item.lineTotalCents) })] })] })] }));
 };
 export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCart, onOpenTender, onCloseMobileCart, onApplyDiscount, onHoldSale, onRestoreSale, hasHeldSale, }) => {
     const [clearPending, armClear, resetClear] = useConfirm(2500);
@@ -189,7 +171,7 @@ export const Cart = ({ items, totals, onUpdateQuantity, onRemoveItem, onClearCar
                                 justifyContent: "center",
                                 marginBottom: 12,
                                 color: "var(--text-muted)",
-                            }, children: _jsx(IconCart, { size: 20 }) }), _jsx("div", { style: { fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }, children: "Cart is empty" }), _jsx("div", { style: { fontSize: 12, marginTop: 4, lineHeight: 1.45, maxWidth: 220 }, children: "Scan an item barcode or select products from the catalog to build this sale." })] })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: 10 }, children: items.map((item) => (_jsx(CartLineItem, { item: item, onUpdateQuantity: onUpdateQuantity, onRemoveItem: onRemoveItem, onApplyDiscount: onApplyDiscount }, item.id))) })) }), _jsxs("div", { style: {
+                            }, children: _jsx(IconCart, { size: 20 }) }), _jsx("div", { style: { fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }, children: "Cart is empty" }), _jsx("div", { style: { fontSize: 12, marginTop: 4, lineHeight: 1.45, maxWidth: 220 }, children: "Scan an item barcode or select products from the catalog to build this sale." })] })) : (_jsx("div", { style: { display: "flex", flexDirection: "column" }, children: items.map((item, idx) => (_jsx(CartLineItem, { item: item, isLast: idx === items.length - 1, onUpdateQuantity: onUpdateQuantity, onRemoveItem: onRemoveItem, onApplyDiscount: onApplyDiscount }, item.id))) })) }), _jsxs("div", { style: {
                     padding: "16px 20px",
                     borderTop: "1px solid var(--border-subtle)",
                     backgroundColor: "var(--bg-surface-elevated)",

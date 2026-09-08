@@ -44,17 +44,18 @@ function useConfirm(timeout = 2000) {
   return [isPending, arm, reset] as const;
 }
 
-/** Per-item inline remove confirmation */
+/** Per-item inline remove confirmation, rendered as a flat ledger row —
+ * a bottom hairline divides items instead of each line living in its own
+ * bordered/rounded card, so a 6-item cart reads as one till roll rather
+ * than a stack of six identical SaaS cards. */
 const CartLineItem: React.FC<{
   item: CartItem;
+  isLast: boolean;
   onUpdateQuantity: (id: string, newQty: number) => void;
   onRemoveItem: (id: string) => void;
   onApplyDiscount: (id: string, discountCents: number) => void;
-}> = ({ item, onUpdateQuantity, onRemoveItem, onApplyDiscount }) => {
+}> = ({ item, isLast, onUpdateQuantity, onRemoveItem }) => {
   const [confirmPending, armConfirm, resetConfirm] = useConfirm(2000);
-  const [discountOpen, setDiscountOpen] = useState(false);
-  const [discountInput, setDiscountInput] = useState("");
-  const [discountType, setDiscountType] = useState<"flat" | "pct">("flat");
 
   const handleRemoveClick = () => {
     if (confirmPending) {
@@ -65,43 +66,19 @@ const CartLineItem: React.FC<{
     }
   };
 
-  const handleApplyDiscount = () => {
-    const val = parseFloat(discountInput);
-    if (isNaN(val) || val < 0) return;
-    let cents: number;
-    if (discountType === "pct") {
-      const pct = Math.min(val, 100) / 100;
-      cents = Math.round(item.priceCents * item.quantity * pct);
-    } else {
-      cents = Math.round(val * 100);
-    }
-    onApplyDiscount(item.id, cents);
-    setDiscountOpen(false);
-    setDiscountInput("");
-  };
-
-  const handleClearDiscount = () => {
-    onApplyDiscount(item.id, 0);
-    setDiscountOpen(false);
-    setDiscountInput("");
-  };
-
   return (
     <div
       style={{
-        padding: "12px 14px",
-        borderRadius: "var(--radius-md)",
-        backgroundColor: "var(--bg-surface-elevated)",
-        border: `1px solid ${confirmPending ? "var(--accent-rose-border)" : "var(--border-subtle)"}`,
+        padding: "12px 0",
+        borderBottom: isLast ? "none" : "1px solid var(--border-subtle)",
         display: "flex",
         flexDirection: "column",
         gap: 8,
-        transition: "border-color 0.2s ease",
       }}
     >
-      {/* Top Row: Name and Remove */}
+      {/* Name + SKU row */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35 }}>
             {item.name}
           </div>
@@ -144,6 +121,55 @@ const CartLineItem: React.FC<{
         </button>
       </div>
 
+      {/* Quantity + line total row — ledger alignment: control on the left,
+          money on the right. Weighed items show a static weight instead of
+          a stepper, since they aren't adjusted a unit at a time. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {item.isWeighed ? (
+          <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
+            {item.quantity} {item.unitType}
+          </span>
+        ) : (
+          <div className="pos-stepper-capsule">
+            <button
+              className="pos-stepper-btn"
+              onClick={() => (item.quantity <= 1 ? handleRemoveClick() : onUpdateQuantity(item.id, item.quantity - 1))}
+              aria-label="Decrease quantity"
+            >
+              <IconMinus size={13} />
+            </button>
+            <span
+              style={{
+                minWidth: 24,
+                textAlign: "center",
+                fontFamily: "var(--font-mono)",
+                fontWeight: 700,
+                fontSize: 13,
+              }}
+            >
+              {item.quantity}
+            </span>
+            <button
+              className="pos-stepper-btn"
+              onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+              aria-label="Increase quantity"
+            >
+              <IconPlus size={13} />
+            </button>
+          </div>
+        )}
+
+        <div style={{ textAlign: "right" }}>
+          {item.discountCents > 0 && (
+            <div style={{ fontSize: 10.5, color: "var(--accent-primary)", fontFamily: "var(--font-mono)" }}>
+              − {formatCurrency(item.discountCents)}
+            </div>
+          )}
+          <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 14 }}>
+            {formatCurrency(item.lineTotalCents)}
+          </span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -344,11 +370,12 @@ export const Cart: React.FC<CartProps> = ({
             </div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {items.map((item) => (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {items.map((item, idx) => (
               <CartLineItem
                 key={item.id}
                 item={item}
+                isLast={idx === items.length - 1}
                 onUpdateQuantity={onUpdateQuantity}
                 onRemoveItem={onRemoveItem}
                 onApplyDiscount={onApplyDiscount}

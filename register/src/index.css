@@ -5,41 +5,41 @@
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   /*
-   * Unified with the admin dashboard's design system — same warm obsidian
-   * & terracotta editorial dark palette, same type family, so the register
-   * and the back-office feel like one product instead of two apps stitched
-   * together. Values are pulled 1:1 from the dashboard's globals.css.
+   * Ledger-and-till palette: near-black ink on paper, one signal color.
+   * The signal is M-Pesa green — it only appears on money-moving actions
+   * (totals, confirm buttons, paid/online states), never as decoration.
+   * Everything else in the interface stays ink-on-paper.
    */
-  --bg-app: #141413;
-  --bg-surface: #1b1a17;
-  --bg-surface-elevated: #22211c;
-  --bg-surface-subtle: #292823;
-  --bg-surface-card: #1e1d19;
-  --border-subtle: #2e2c26;
-  --border-strong: #444138;
-  --border-focus: #d97757;
+  --bg-app: #131413;
+  --bg-surface: #1a1a18;
+  --bg-surface-elevated: #212120;
+  --bg-surface-subtle: #282826;
+  --bg-surface-card: #1c1c1a;
+  --border-subtle: #2c2c29;
+  --border-strong: #45443f;
+  --border-focus: var(--accent-primary);
 
-  --text-primary: #f5f4ef;
-  --text-secondary: #b5b3a9;
-  --text-muted: #828076;
+  --text-primary: #f2f2ef;
+  --text-secondary: #b2b1a8;
+  --text-muted: #82817a;
 
-  /* Signal — the one accent. Reserved for totals and primary actions.
-   * Terracotta, matching the dashboard's brand accent. */
-  --accent-primary: #d97757;
-  --accent-primary-hover: #c5684a;
+  /* Signal — the one accent. Reserved for totals and primary/money actions.
+   * M-Pesa green, not a decorative brand color. */
+  --accent-primary: #1CAE52;
+  --accent-primary-hover: #17953F;
   --accent-primary-text: #ffffff;
-  --accent-primary-bg: rgba(217, 119, 87, 0.12);
-  --accent-primary-border: rgba(217, 119, 87, 0.4);
-  --accent-primary-ring: rgba(217, 119, 87, 0.18);
-  --accent-primary-shadow: rgba(217, 119, 87, 0.3);
+  --accent-primary-bg: rgba(28, 174, 82, 0.14);
+  --accent-primary-border: rgba(28, 174, 82, 0.4);
+  --accent-primary-ring: rgba(28, 174, 82, 0.2);
+  --accent-primary-shadow: rgba(28, 174, 82, 0.3);
   /* Legacy alias — several components still reference this name directly */
   --accent-terracotta: var(--accent-primary);
   --accent-terracotta-bg: var(--accent-primary-bg);
 
   /* Status accents — meaning-bearing only (tax type, online state, warnings).
-   * The dashboard only defines "emerald" for green; --accent-sage is kept
-   * as an alias pointing at the same value so nothing in the register's
-   * components needs to change. */
+   * --accent-sage is a quieter, more muted green than the primary signal —
+   * same hue family (both read as "money/confirmed"), lower saturation so
+   * a passive status pill never competes visually with the primary action. */
   --accent-emerald: #5fad7c;
   --accent-emerald-bg: rgba(95, 173, 124, 0.12);
   --accent-sage: var(--accent-emerald);
@@ -58,18 +58,17 @@
 
   /* Category identity colors — a rotating set of distinct hues used ONLY to
    * give cashiers a fast, at-a-glance "which department is this" signal
-   * (category tab dot + a thin edge on product cards). Kept separate from
-   * the single-signal accent above so totals/actions stay singular and
-   * meaningful; two of the seven reuse the dashboard's own status colors
-   * (mineral, emerald, amber) and the rest extend that same warm-obsidian
-   * palette rather than introducing a clashing hue family. */
+   * (category tab dot + a thin edge on product cards). Green is deliberately
+   * excluded from this rotation — green is reserved for the single money
+   * signal above, so a category dot is never mistaken for a paid/confirmed
+   * state. Red is excluded too, reserved for out-of-stock/errors. */
   --cat-color-1: #7da5ce; /* mineral blue */
-  --cat-color-2: #5fad7c; /* emerald */
-  --cat-color-3: #e09f3e; /* amber */
-  --cat-color-4: #a888c9; /* muted plum */
-  --cat-color-5: #4fb0a5; /* teal */
-  --cat-color-6: #c99a52; /* ochre clay */
-  --cat-color-7: #8f9fd1; /* periwinkle */
+  --cat-color-2: #e09f3e; /* amber */
+  --cat-color-3: #a888c9; /* muted plum */
+  --cat-color-4: #4fb0a5; /* teal */
+  --cat-color-5: #c99a52; /* ochre clay */
+  --cat-color-6: #8f9fd1; /* periwinkle */
+  --cat-color-7: #b08968; /* warm taupe */
 
   /* Radius + shadow scale, matching the dashboard exactly — including a
    * true capsule --radius-pill (9999px) rather than the register's earlier
@@ -95,29 +94,29 @@
 }
 
 [data-theme="light"] {
-  /* Same dashboard tokens, light mode: warm cream instead of pure white,
-   * matching the admin app's light theme rather than the register's old
-   * independent cool-gray "spec sheet" look. */
-  --bg-app: #faf9f5;
+  /* Neutral paper, not cream — a ledger page, not a latte. Cooler and
+   * greyer than a typical warm-beige "AI generated" light theme. */
+  --bg-app: #f4f5f3;
   --bg-surface: #ffffff;
-  --bg-surface-elevated: #f4f3ee;
-  --bg-surface-subtle: #eae8df;
+  --bg-surface-elevated: #eef0ed;
+  --bg-surface-subtle: #e5e7e3;
   --bg-surface-card: #ffffff;
-  --border-subtle: #e8e6dc;
-  --border-strong: #d2cfc3;
-  --border-focus: #d97757;
+  --border-subtle: #e0e2dd;
+  --border-strong: #c8cbc4;
+  --border-focus: var(--accent-primary);
 
-  --text-primary: #141413;
-  --text-secondary: #5c5a52;
-  --text-muted: #8c897e;
+  --text-primary: #14150f;
+  --text-secondary: #5a5c54;
+  --text-muted: #8b8d84;
 
-  --accent-primary: #d97757;
-  --accent-primary-hover: #c5684a;
+  /* Signal — deepened for legible contrast against white/paper surfaces. */
+  --accent-primary: #178A46;
+  --accent-primary-hover: #12703A;
   --accent-primary-text: #ffffff;
-  --accent-primary-bg: rgba(217, 119, 87, 0.1);
-  --accent-primary-border: rgba(217, 119, 87, 0.35);
-  --accent-primary-ring: rgba(217, 119, 87, 0.14);
-  --accent-primary-shadow: rgba(217, 119, 87, 0.25);
+  --accent-primary-bg: rgba(23, 138, 70, 0.1);
+  --accent-primary-border: rgba(23, 138, 70, 0.35);
+  --accent-primary-ring: rgba(23, 138, 70, 0.16);
+  --accent-primary-shadow: rgba(23, 138, 70, 0.25);
   --accent-terracotta: var(--accent-primary);
   --accent-terracotta-bg: var(--accent-primary-bg);
 
@@ -137,15 +136,15 @@
   --accent-rose-border: rgba(201, 74, 80, 0.32);
   --accent-blue: var(--accent-mineral);
 
-  /* Same category palette, darkened to hold contrast on the warm cream
-   * surface instead of the near-black one. */
+  /* Same category palette, darkened to hold contrast on the paper surface.
+   * Green and red stay excluded here too — see dark-mode comment above. */
   --cat-color-1: #48729d;
-  --cat-color-2: #3d8f5e;
-  --cat-color-3: #b87a28;
-  --cat-color-4: #8a5fa8;
-  --cat-color-5: #2f8a80;
-  --cat-color-6: #a67a3a;
-  --cat-color-7: #6673b0;
+  --cat-color-2: #b87a28;
+  --cat-color-3: #8a5fa8;
+  --cat-color-4: #2f8a80;
+  --cat-color-5: #a67a3a;
+  --cat-color-6: #6673b0;
+  --cat-color-7: #8a6349;
 }
 
 /* Compact density — tighter grid/list spacing, more visible at once. */

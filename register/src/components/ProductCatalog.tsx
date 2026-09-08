@@ -293,9 +293,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 backgroundColor: "var(--bg-surface)",
                 color: "var(--text-primary)",
                 border: "1px solid var(--border-subtle)",
-                borderRadius: "var(--radius-pill)",
+                borderRadius: "var(--radius-md)",
                 outline: "none",
-                boxShadow: "var(--shadow-subtle)",
+                boxShadow: "none",
                 transition: "border-color 0.15s ease, box-shadow 0.15s ease",
               }}
               onFocus={(e) => {
@@ -304,7 +304,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = "var(--border-subtle)";
-                e.currentTarget.style.boxShadow = "var(--shadow-subtle)";
+                e.currentTarget.style.boxShadow = "none";
               }}
             />
 

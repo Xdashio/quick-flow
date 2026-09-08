@@ -128,8 +128,8 @@ export const SyncDrawer: React.FC<SyncDrawerProps> = ({
 
         {/* Database Telemetry */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Local Storage Telemetry
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)" }}>
+            Local storage telemetry
           </span>
 
           <div
@@ -171,8 +171,8 @@ export const SyncDrawer: React.FC<SyncDrawerProps> = ({
 
         {/* Backend URL Configuration */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Backend Server
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)" }}>
+            Backend server
           </span>
           <div
             style={{

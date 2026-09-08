@@ -49,7 +49,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
 
         {/* Theme */}
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-muted)", textTransform: "uppercase" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)" }}>
             Appearance
           </span>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -86,8 +86,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
 
         {/* Display Scale / Zoom / Font size */}
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Text &amp; Zoom Size
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)" }}>
+            Text &amp; zoom size
           </span>
           <div
             style={{
@@ -152,8 +152,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
 
         {/* Density */}
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Layout Density
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)" }}>
+            Layout density
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {DENSITY_OPTIONS.map((opt) => {

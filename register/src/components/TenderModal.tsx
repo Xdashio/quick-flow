@@ -374,20 +374,12 @@ setIsProcessing(true);
           }}
         >
           <div>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "var(--accent-terracotta)",
-              }}
-            >
-              Checkout Tender
-            </span>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700 }}>
               Payment Processing
             </h3>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {formatCurrency(totals.grandTotalCents)} · {totals.itemCount} item{totals.itemCount === 1 ? "" : "s"}
+            </span>
           </div>
 
           <button
@@ -494,8 +486,8 @@ setIsProcessing(true);
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {/* Quick denomination chips */}
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
-                  Quick Select (KES)
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 8 }}>
+                  Quick select (KES)
                 </label>
                 <div style={{ display: "flex", gap: 6 }}>
                   {[500, 1000, 2000, 5000].map((shillings) => {
@@ -558,17 +550,15 @@ setIsProcessing(true);
                 <label
                   htmlFor="cash-tendered-input"
                   style={{
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 600,
                     color: isBelowTotal ? "var(--accent-rose)" : "var(--text-muted)",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
                     display: "block",
                     marginBottom: 8,
                     transition: "color 0.2s ease",
                   }}
                 >
-                  Cash Tendered (KES)
+                  Cash tendered (KES)
                 </label>
                 <div style={{ position: "relative" }}>
                   <span
@@ -867,8 +857,8 @@ setIsProcessing(true);
                   gap: 4,
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent-primary)" }}>
-                  Lipa na M-Pesa Buy Goods Till
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--accent-primary)" }}>
+                  Lipa na M-Pesa · Buy Goods Till
                 </span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "0.04em" }}>
                   {TILL_NUMBER}

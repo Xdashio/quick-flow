@@ -219,16 +219,16 @@ export const ProductCatalog = ({ products, categories = [], cartQuantityByProduc
                                             backgroundColor: "var(--bg-surface)",
                                             color: "var(--text-primary)",
                                             border: "1px solid var(--border-subtle)",
-                                            borderRadius: "var(--radius-pill)",
+                                            borderRadius: "var(--radius-md)",
                                             outline: "none",
-                                            boxShadow: "var(--shadow-subtle)",
+                                            boxShadow: "none",
                                             transition: "border-color 0.15s ease, box-shadow 0.15s ease",
                                         }, onFocus: (e) => {
                                             e.currentTarget.style.borderColor = "var(--border-focus)";
                                             e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-primary-ring)";
                                         }, onBlur: (e) => {
                                             e.currentTarget.style.borderColor = "var(--border-subtle)";
-                                            e.currentTarget.style.boxShadow = "var(--shadow-subtle)";
+                                            e.currentTarget.style.boxShadow = "none";
                                         } }), searchQuery && (_jsx("button", { onClick: () => {
                                             setSearchQuery("");
                                             searchInputRef.current?.focus();
