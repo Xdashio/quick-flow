@@ -10,8 +10,8 @@
   "/(dashboard)/inventory/page": "/inventory",
   "/(dashboard)/drawer/page": "/drawer",
   "/(dashboard)/payments/page": "/payments",
-  "/(dashboard)/users/page": "/users",
   "/(dashboard)/products/page": "/products",
-  "/login/page": "/login",
-  "/(dashboard)/overview/page": "/overview"
+  "/(dashboard)/users/page": "/users",
+  "/(dashboard)/overview/page": "/overview",
+  "/login/page": "/login"
 }

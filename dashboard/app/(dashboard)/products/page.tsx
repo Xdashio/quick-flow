@@ -29,22 +29,39 @@ interface Product {
 interface Category { id: string; name: string; parentId: string | null }
 interface TaxCategory { id: string; name: string; rateBp: number }
 interface Location { id: string; name: string; address?: string | null }
+interface MovementSummary { productId: string; quantityDelta: string }
 
 export default async function ProductsPage() {
-  const [products, categories, taxCategories, locations] = await Promise.all([
+  const [products, categories, taxCategories, locations, movements] = await Promise.all([
     apiFetch<Product[]>('/products').catch(() => [] as Product[]),
     apiFetch<Category[]>('/categories').catch(() => [] as Category[]),
     apiFetch<TaxCategory[]>('/tax-categories').catch(() => [] as TaxCategory[]),
     apiFetch<Location[]>('/locations').catch(() => [] as Location[]),
+    apiFetch<MovementSummary[]>('/inventory/movements').catch(() => [] as MovementSummary[]),
   ]);
 
-  const activeCount = products.filter(p => p.active).length;
+  // Aggregate stock from movements if backend does not compute totalStock directly
+  const stockMap = new Map<string, number>();
+  for (const m of movements) {
+    const prev = stockMap.get(m.productId) ?? 0;
+    stockMap.set(m.productId, prev + (parseFloat(m.quantityDelta) || 0));
+  }
+
+  const productsWithStock = products.map((p) => ({
+    ...p,
+    totalStock:
+      typeof p.totalStock === 'number'
+        ? p.totalStock
+        : Math.round((stockMap.get(p.id) ?? 0) * 1000) / 1000,
+  }));
+
+  const activeCount = productsWithStock.filter(p => p.active).length;
 
   return (
     <>
       <div className="topbar">
         <h2>Products</h2>
-        <span className="topbar-badge">{activeCount} active · {products.length} total</span>
+        <span className="topbar-badge">{activeCount} active · {productsWithStock.length} total</span>
       </div>
 
       <div className="page-content">
@@ -57,7 +74,7 @@ export default async function ProductsPage() {
           </div>
           <div style={{ padding: '20px 20px 28px' }}>
             <ProductsGrid
-              products={products}
+              products={productsWithStock}
               categories={categories}
               taxCategories={taxCategories}
               locations={locations}

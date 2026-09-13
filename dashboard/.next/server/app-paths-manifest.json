@@ -10,8 +10,8 @@
   "/(dashboard)/inventory/page": "app/(dashboard)/inventory/page.js",
   "/(dashboard)/drawer/page": "app/(dashboard)/drawer/page.js",
   "/(dashboard)/payments/page": "app/(dashboard)/payments/page.js",
-  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
   "/(dashboard)/products/page": "app/(dashboard)/products/page.js",
-  "/login/page": "app/login/page.js",
-  "/(dashboard)/overview/page": "app/(dashboard)/overview/page.js"
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(dashboard)/overview/page": "app/(dashboard)/overview/page.js",
+  "/login/page": "app/login/page.js"
 }

@@ -281,20 +281,46 @@ function EditPanel({
   const [adjustError, setAdjustError] = useState('');
 
   const fetchStockDetails = useCallback(async () => {
-    if (!product?.id) return;
+    if (!product?.id) return null;
     setLoadingStock(true);
     try {
-      const res = await fetch(`/api/proxy/inventory/stock/${product.id}`, { credentials: 'include' });
+      let res = await fetch(`/api/proxy/inventory/stock/${product.id}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setStockDetails(data);
+        return data as { productId: string; totalStock: number; locations: Array<{ locationId: string; locationName: string; quantity: number }> };
       }
+      // Backward-compatible fallback for backends exposing /inventory/current/:productId
+      res = await fetch(`/api/proxy/inventory/current/${product.id}`, { credentials: 'include' });
+      if (res.ok) {
+        const raw = await res.json();
+        const rows: Array<{ locationId?: string | null; quantity: string }> = Array.isArray(raw) ? raw : [raw];
+        const locMap = new Map<string, number>();
+        let sum = 0;
+        for (const r of rows) {
+          const q = parseFloat(r.quantity) || 0;
+          sum += q;
+          if (r.locationId) locMap.set(r.locationId, q);
+        }
+        const fallbackDetails = {
+          productId: product.id,
+          totalStock: Math.round(sum * 1000) / 1000,
+          locations: locations.map((loc) => ({
+            locationId: loc.id,
+            locationName: loc.name,
+            quantity: locMap.get(loc.id) ?? (rows.length === 1 && !rows[0].locationId ? sum : 0),
+          })),
+        };
+        setStockDetails(fallbackDetails);
+        return fallbackDetails;
+      }
+      return null;
     } catch {
-      // Ignore network errors on passive stock poll
+      return null;
     } finally {
       setLoadingStock(false);
     }
-  }, [product?.id]);
+  }, [product?.id, locations]);
 
   useEffect(() => {
     if (!isCreate) {
@@ -438,9 +464,11 @@ function EditPanel({
         throw new Error(msg);
       }
 
-      await fetchStockDetails();
-      const currentTotal = product!.totalStock ?? stockDetails?.totalStock ?? 0;
-      const newTotal = currentTotal + signedDelta;
+      const freshDetails = await fetchStockDetails();
+      const newTotal =
+        typeof freshDetails?.totalStock === 'number'
+          ? freshDetails.totalStock
+          : (product!.totalStock ?? stockDetails?.totalStock ?? 0) + signedDelta;
       onSaved({ ...product!, totalStock: newTotal }, false);
 
       setAdjustSuccess(`Recorded ${signedDelta > 0 ? '+' : ''}${formatStock(signedDelta, product!.isWeighed, product!.unitType)} (${adjustReason})`);
@@ -1247,7 +1275,18 @@ export function ProductsGrid({ products, categories, taxCategories, locations = 
   const [highlightId, setHighlightId] = useState<string | null>(null);
 
   useEffect(() => {
-    setItems(products);
+    setItems((prev) =>
+      products.map((p) => {
+        const existing = prev.find((e) => e.id === p.id);
+        return {
+          ...p,
+          totalStock:
+            typeof p.totalStock === 'number'
+              ? p.totalStock
+              : (existing?.totalStock ?? 0),
+        };
+      }),
+    );
   }, [products]);
 
   function handleSaved(saved: Product, isNew?: boolean) {
