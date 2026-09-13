@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Select } from './Select';
 
@@ -19,6 +19,13 @@ interface Props {
   products: ProductOption[];
   locations: LocationOption[];
   initialProductId?: string;
+  selectedProductId?: string;
+  onMovementRecorded?: (
+    movement: any,
+    newBalance?: number,
+    productId?: string,
+    quantityDelta?: number,
+  ) => void;
 }
 
 const REASON_OPTIONS = [
@@ -31,15 +38,33 @@ const REASON_OPTIONS = [
 
 const ADDS_STOCK = new Set(['receiving', 'return', 'adjustment']);
 
-export function StockMovementForm({ products, locations, initialProductId }: Props) {
+export function StockMovementForm({
+  products,
+  locations,
+  initialProductId,
+  selectedProductId,
+  onMovementRecorded,
+}: Props) {
   const router = useRouter();
-  const [productId, setProductId] = useState(initialProductId ?? products[0]?.id ?? '');
+  const [productId, setProductId] = useState(selectedProductId ?? initialProductId ?? products[0]?.id ?? '');
   const [locationId, setLocationId] = useState(locations[0]?.id ?? '');
   const [reason, setReason] = useState('receiving');
   const [quantity, setQuantity] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (selectedProductId) {
+      setProductId(selectedProductId);
+      setReason('receiving');
+      setQuantity('');
+      const qtyInput = document.getElementById('movement-quantity');
+      if (qtyInput) {
+        qtyInput.focus();
+      }
+    }
+  }, [selectedProductId]);
 
   const productOptions = products.map((p) => ({ value: p.id, label: `${p.name} (${p.sku})` }));
   const locationOptions = locations.map((l) => ({ value: l.id, label: l.name }));
@@ -87,6 +112,14 @@ export function StockMovementForm({ products, locations, initialProductId }: Pro
       setSuccess(
         `Recorded ${signedQty > 0 ? '+' : ''}${signedQty} for ${product?.name ?? 'product'}${balanceNote}`
       );
+      if (onMovementRecorded) {
+        onMovementRecorded(
+          data?.movement,
+          newBalance !== undefined ? Number(newBalance) : undefined,
+          productId,
+          signedQty,
+        );
+      }
       setQuantity('');
       router.refresh();
     } catch {

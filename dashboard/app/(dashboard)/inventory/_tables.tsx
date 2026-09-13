@@ -58,41 +58,94 @@ function reasonLabel(reason: string) {
   return map[reason] ?? reason;
 }
 
-const lowStockColumns: Column<LowStockItem>[] = [
-  {
-    key: 'sku',
-    header: 'SKU',
-    pinned: 'left',
-    cell: (item) => <span className="mono td-muted">{item.sku}</span>,
-  },
-  {
-    key: 'name',
-    header: 'Product Name',
-    cell: (item) => <span className="font-bold">{item.name}</span>,
-  },
-  {
-    key: 'currentStock',
-    header: 'Current Stock',
-    cell: (item) => (
-      <span className="mono font-bold" style={{ color: 'var(--accent-rose)' }}>
-        {item.currentStock} {item.unitType}
-      </span>
-    ),
-  },
-  {
-    key: 'reorderPoint',
-    header: 'Reorder At',
-    cell: (item) => <span className="mono td-muted">{item.reorderPoint}</span>,
-  },
-];
+export function LowStockTable({
+  data,
+  onRestock,
+}: {
+  data: LowStockItem[];
+  onRestock?: (productId: string) => void;
+}) {
+  const columns: Column<LowStockItem>[] = useMemo(
+    () => [
+      {
+        key: 'sku',
+        header: 'SKU',
+        pinned: 'left',
+        cell: (item) => <span className="mono td-muted">{item.sku}</span>,
+      },
+      {
+        key: 'name',
+        header: 'Product Name',
+        cell: (item) => <span className="font-bold">{item.name}</span>,
+      },
+      {
+        key: 'currentStock',
+        header: 'Current Stock',
+        cell: (item) => (
+          <span className="mono font-bold" style={{ color: 'var(--accent-rose)' }}>
+            {item.currentStock} {item.unitType}
+          </span>
+        ),
+      },
+      {
+        key: 'reorderPoint',
+        header: 'Reorder At',
+        cell: (item) => <span className="mono td-muted">{item.reorderPoint}</span>,
+      },
+      ...(onRestock
+        ? [
+            {
+              key: 'action',
+              header: 'Action',
+              pinned: 'right' as const,
+              cell: (item: LowStockItem) => (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestock(item.productId);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    fontWeight: 600,
+                    color: 'var(--accent-emerald)',
+                    borderColor: 'rgba(95, 173, 124, 0.35)',
+                    background: 'rgba(95, 173, 124, 0.08)',
+                    cursor: 'pointer',
+                  }}
+                  title={`Restock ${item.name}`}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Restock
+                </button>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [onRestock],
+  );
 
-export function LowStockTable({ data }: { data: LowStockItem[] }) {
   return (
     <DataTable<LowStockItem>
       title="Low Stock Alerts"
       subtitle="Products reaching minimum reorder limits"
       data={data}
-      columns={lowStockColumns}
+      columns={columns}
       searchKey="name"
       searchPlaceholder="Search low stock..."
       emptyMessage="All stock levels are optimal!"
