@@ -6,7 +6,30 @@
 
 // ───────────────────── Enums ─────────────────────
 
-export type UnitType = "each" | "kg" | "lb" | "oz";
+export type UnitType =
+  | "each"
+  | "kg"
+  | "g"
+  | "lb"
+  | "oz"
+  | "litre"
+  | "ml"
+  | "dozen"
+  | "pack"
+  | "box";
+
+export const SUPPORTED_UNIT_TYPES: readonly UnitType[] = [
+  "each",
+  "kg",
+  "g",
+  "lb",
+  "oz",
+  "litre",
+  "ml",
+  "dozen",
+  "pack",
+  "box",
+] as const;
 
 export type TaxCategoryName = "standard" | "zero_rated" | "exempt";
 
@@ -60,11 +83,34 @@ export interface Product {
   unitType: UnitType;
   isWeighed: boolean;
   priceCents: number;
+  costCents?: number | null;
+  profitCents?: number | null;
+  marginPct?: number | null;
   taxCategoryId: string | null;
   categoryId: string | null;
+  imageKey?: string | null;
+  imageUrl?: string | null;
+  reorderPoint?: number | null;
+  totalStock?: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LocationStock {
+  locationId: string;
+  locationName: string;
+  quantity: number;
+}
+
+export interface ProductStockDetail {
+  productId: string;
+  totalStock: number;
+  locations: LocationStock[];
+}
+
+export interface ProductWithStock extends Product {
+  totalStock: number;
 }
 
 export interface InventoryMovement {
@@ -164,8 +210,12 @@ export interface CreateProductDto {
   unitType?: UnitType;
   isWeighed?: boolean;
   priceCents: number;
+  costCents?: number | null;
+  reorderPoint?: number | null;
   taxCategoryId?: string | null;
   categoryId?: string | null;
+  initialStock?: number;
+  initialLocationId?: string;
 }
 
 export interface CreateTransactionDto {

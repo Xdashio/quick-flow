@@ -13,12 +13,15 @@ exports.ProductsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const r2_service_1 = require("../images/r2.service");
+const inventory_service_1 = require("../inventory/inventory.service");
 let ProductsService = class ProductsService {
     prisma;
     r2;
-    constructor(prisma, r2) {
+    inventory;
+    constructor(prisma, r2, inventory) {
         this.prisma = prisma;
         this.r2 = r2;
+        this.inventory = inventory;
     }
     withComputed(product) {
         const hasCost = product.costCents !== null && product.costCents !== undefined;
@@ -34,26 +37,41 @@ let ProductsService = class ProductsService {
         };
     }
     async create(dto) {
+        if (dto.initialStock && dto.initialStock > 0 && !dto.initialLocationId) {
+            throw new common_1.BadRequestException('initialLocationId is required when initialStock is provided');
+        }
         try {
-            const product = await this.prisma.product.create({
-                data: {
-                    sku: dto.sku,
-                    barcode: dto.barcode ?? null,
-                    name: dto.name,
-                    description: dto.description ?? null,
-                    unitType: dto.unitType ?? 'each',
-                    isWeighed: dto.isWeighed ?? false,
-                    priceCents: dto.priceCents,
-                    costCents: dto.costCents ?? null,
-                    taxCategoryId: dto.taxCategoryId ?? null,
-                    categoryId: dto.categoryId ?? null,
-                    active: dto.active ?? true,
-                    imageKey: dto.imageKey ?? null,
-                    reorderPoint: dto.reorderPoint ?? null,
-                },
-                include: { taxCategory: true, category: true },
+            const createdProduct = await this.prisma.$transaction(async (tx) => {
+                const product = await tx.product.create({
+                    data: {
+                        sku: dto.sku,
+                        barcode: dto.barcode ?? null,
+                        name: dto.name,
+                        description: dto.description ?? null,
+                        unitType: dto.unitType ?? 'each',
+                        isWeighed: dto.isWeighed ?? false,
+                        priceCents: dto.priceCents,
+                        costCents: dto.costCents ?? null,
+                        taxCategoryId: dto.taxCategoryId ?? null,
+                        categoryId: dto.categoryId ?? null,
+                        active: dto.active ?? true,
+                        imageKey: dto.imageKey ?? null,
+                        reorderPoint: dto.reorderPoint ?? null,
+                    },
+                    include: { taxCategory: true, category: true },
+                });
+                if (dto.initialStock && dto.initialStock > 0) {
+                    await this.inventory.recordInitialStock(product.id, dto.initialLocationId, dto.initialStock, undefined, tx);
+                }
+                return product;
             });
-            return this.withComputed(product);
+            if (dto.initialStock && dto.initialStock > 0) {
+                await this.inventory.refreshMaterializedView();
+            }
+            return this.withComputed({
+                ...createdProduct,
+                totalStock: dto.initialStock ?? 0,
+            });
         }
         catch (e) {
             if (e.code === 'P2002') {
@@ -63,20 +81,32 @@ let ProductsService = class ProductsService {
         }
     }
     async findAll() {
-        const products = await this.prisma.product.findMany({
-            orderBy: { createdAt: 'desc' },
-            include: { taxCategory: true, category: true },
-        });
-        return products.map((p) => this.withComputed(p));
+        const [products, stockMap] = await Promise.all([
+            this.prisma.product.findMany({
+                orderBy: { createdAt: 'desc' },
+                include: { taxCategory: true, category: true },
+            }),
+            this.inventory.getTotalStockMap(),
+        ]);
+        return products.map((p) => this.withComputed({
+            ...p,
+            totalStock: stockMap.get(p.id) ?? 0,
+        }));
     }
     async findOne(id) {
-        const product = await this.prisma.product.findUnique({
-            where: { id },
-            include: { taxCategory: true, category: true },
-        });
+        const [product, stockMap] = await Promise.all([
+            this.prisma.product.findUnique({
+                where: { id },
+                include: { taxCategory: true, category: true },
+            }),
+            this.inventory.getTotalStockMap([id]),
+        ]);
         if (!product)
             throw new common_1.NotFoundException(`Product ${id} not found`);
-        return this.withComputed(product);
+        return this.withComputed({
+            ...product,
+            totalStock: stockMap.get(product.id) ?? 0,
+        });
     }
     async findByBarcode(barcode) {
         const product = await this.prisma.product.findFirst({
@@ -85,10 +115,20 @@ let ProductsService = class ProductsService {
         });
         if (!product)
             throw new common_1.NotFoundException(`Product with barcode ${barcode} not found`);
-        return this.withComputed(product);
+        const stockMap = await this.inventory.getTotalStockMap([product.id]);
+        return this.withComputed({
+            ...product,
+            totalStock: stockMap.get(product.id) ?? 0,
+        });
     }
     async update(id, dto) {
-        const existing = await this.findOne(id);
+        const existing = await this.prisma.product.findUnique({
+            where: { id },
+            select: { id: true, imageKey: true },
+        });
+        if (!existing) {
+            throw new common_1.NotFoundException(`Product ${id} not found`);
+        }
         if (dto.imageKey !== undefined &&
             existing.imageKey &&
             existing.imageKey !== dto.imageKey) {
@@ -114,7 +154,11 @@ let ProductsService = class ProductsService {
                 },
                 include: { taxCategory: true, category: true },
             });
-            return this.withComputed(product);
+            const stockMap = await this.inventory.getTotalStockMap([id]);
+            return this.withComputed({
+                ...product,
+                totalStock: stockMap.get(id) ?? 0,
+            });
         }
         catch (e) {
             if (e.code === 'P2002') {
@@ -124,12 +168,18 @@ let ProductsService = class ProductsService {
         }
     }
     async remove(id) {
-        const existing = await this.findOne(id);
-        if (existing.imageKey) {
-            await this.r2.deleteObject(existing.imageKey);
+        const existing = await this.prisma.product.findUnique({
+            where: { id },
+            select: { id: true, imageKey: true },
+        });
+        if (!existing) {
+            throw new common_1.NotFoundException(`Product ${id} not found`);
         }
         try {
             await this.prisma.product.delete({ where: { id } });
+            if (existing.imageKey) {
+                await this.r2.deleteObject(existing.imageKey);
+            }
             return { deleted: true, id };
         }
         catch (e) {
@@ -148,6 +198,7 @@ exports.ProductsService = ProductsService;
 exports.ProductsService = ProductsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        r2_service_1.R2Service])
+        r2_service_1.R2Service,
+        inventory_service_1.InventoryService])
 ], ProductsService);
 //# sourceMappingURL=products.service.js.map

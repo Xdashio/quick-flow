@@ -25,6 +25,8 @@ class CreateProductDto {
     active;
     imageKey;
     reorderPoint;
+    initialStock;
+    initialLocationId;
 }
 exports.CreateProductDto = CreateProductDto;
 __decorate([
@@ -97,4 +99,15 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreateProductDto.prototype, "reorderPoint", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CreateProductDto.prototype, "initialStock", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateProductDto.prototype, "initialLocationId", void 0);
 //# sourceMappingURL=create-product.dto.js.map

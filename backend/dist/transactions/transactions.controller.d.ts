@@ -6,8 +6,8 @@ export declare class TransactionsController {
     constructor(service: TransactionsService);
     create(dto: CreateTransactionDto): Promise<{
         lineItems: {
-            id: string;
             productId: string;
+            id: string;
             quantity: import("@prisma/client-runtime-utils").Decimal;
             unitPriceCents: number;
             discountCents: number;
@@ -28,9 +28,9 @@ export declare class TransactionsController {
             etimsInvoiceNumber: string | null;
         }[];
     } & {
+        locationId: string;
         id: string;
         createdAt: Date;
-        locationId: string;
         registerId: string | null;
         cashierId: string | null;
         customerId: string | null;
@@ -44,8 +44,8 @@ export declare class TransactionsController {
     }>;
     findAll(): Promise<({
         lineItems: {
-            id: string;
             productId: string;
+            id: string;
             quantity: import("@prisma/client-runtime-utils").Decimal;
             unitPriceCents: number;
             discountCents: number;
@@ -66,9 +66,9 @@ export declare class TransactionsController {
             etimsInvoiceNumber: string | null;
         }[];
     } & {
+        locationId: string;
         id: string;
         createdAt: Date;
-        locationId: string;
         registerId: string | null;
         cashierId: string | null;
         customerId: string | null;
@@ -84,25 +84,25 @@ export declare class TransactionsController {
         lineItems: ({
             product: {
                 name: string;
+                id: string;
                 sku: string;
                 barcode: string | null;
                 description: string | null;
                 unitType: string;
                 isWeighed: boolean;
                 priceCents: number;
-                costCents: number | null;
                 taxCategoryId: string | null;
                 categoryId: string | null;
-                active: boolean;
                 imageKey: string | null;
                 reorderPoint: number | null;
-                id: string;
+                costCents: number | null;
+                active: boolean;
                 createdAt: Date;
                 updatedAt: Date;
             };
         } & {
-            id: string;
             productId: string;
+            id: string;
             quantity: import("@prisma/client-runtime-utils").Decimal;
             unitPriceCents: number;
             discountCents: number;
@@ -123,9 +123,9 @@ export declare class TransactionsController {
             etimsInvoiceNumber: string | null;
         }[];
     } & {
+        locationId: string;
         id: string;
         createdAt: Date;
-        locationId: string;
         registerId: string | null;
         cashierId: string | null;
         customerId: string | null;
@@ -139,8 +139,8 @@ export declare class TransactionsController {
     }>;
     update(id: string, dto: UpdateTransactionDto): Promise<{
         lineItems: {
-            id: string;
             productId: string;
+            id: string;
             quantity: import("@prisma/client-runtime-utils").Decimal;
             unitPriceCents: number;
             discountCents: number;
@@ -161,9 +161,9 @@ export declare class TransactionsController {
             etimsInvoiceNumber: string | null;
         }[];
     } & {
+        locationId: string;
         id: string;
         createdAt: Date;
-        locationId: string;
         registerId: string | null;
         cashierId: string | null;
         customerId: string | null;

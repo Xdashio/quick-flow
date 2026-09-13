@@ -75,25 +75,25 @@ export declare class MpesaService {
             lineItems: ({
                 product: {
                     name: string;
+                    id: string;
                     sku: string;
                     barcode: string | null;
                     description: string | null;
                     unitType: string;
                     isWeighed: boolean;
                     priceCents: number;
-                    costCents: number | null;
                     taxCategoryId: string | null;
                     categoryId: string | null;
-                    active: boolean;
                     imageKey: string | null;
                     reorderPoint: number | null;
-                    id: string;
+                    costCents: number | null;
+                    active: boolean;
                     createdAt: Date;
                     updatedAt: Date;
                 };
             } & {
-                id: string;
                 productId: string;
+                id: string;
                 quantity: import("@prisma/client-runtime-utils").Decimal;
                 unitPriceCents: number;
                 discountCents: number;
@@ -103,9 +103,9 @@ export declare class MpesaService {
                 transactionId: string;
             })[];
         } & {
+            locationId: string;
             id: string;
             createdAt: Date;
-            locationId: string;
             registerId: string | null;
             cashierId: string | null;
             customerId: string | null;

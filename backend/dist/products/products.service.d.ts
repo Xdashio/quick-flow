@@ -1,13 +1,16 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../images/r2.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 export declare class ProductsService {
     private prisma;
     private r2;
-    constructor(prisma: PrismaService, r2: R2Service);
+    private inventory;
+    constructor(prisma: PrismaService, r2: R2Service, inventory: InventoryService);
     private withComputed;
     create(dto: CreateProductDto): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -20,21 +23,20 @@ export declare class ProductsService {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -43,6 +45,7 @@ export declare class ProductsService {
         marginPct: number | null;
     }>;
     findAll(): Promise<({
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -55,21 +58,20 @@ export declare class ProductsService {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -78,6 +80,7 @@ export declare class ProductsService {
         marginPct: number | null;
     })[]>;
     findOne(id: string): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -90,21 +93,20 @@ export declare class ProductsService {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -113,6 +115,7 @@ export declare class ProductsService {
         marginPct: number | null;
     }>;
     findByBarcode(barcode: string): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -125,21 +128,20 @@ export declare class ProductsService {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -148,6 +150,7 @@ export declare class ProductsService {
         marginPct: number | null;
     }>;
     update(id: string, dto: UpdateProductDto): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -160,21 +163,20 @@ export declare class ProductsService {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -192,19 +194,19 @@ export declare class ProductsService {
         deactivated: boolean;
         product: {
             name: string;
+            id: string;
             sku: string;
             barcode: string | null;
             description: string | null;
             unitType: string;
             isWeighed: boolean;
             priceCents: number;
-            costCents: number | null;
             taxCategoryId: string | null;
             categoryId: string | null;
-            active: boolean;
             imageKey: string | null;
             reorderPoint: number | null;
-            id: string;
+            costCents: number | null;
+            active: boolean;
             createdAt: Date;
             updatedAt: Date;
         } & {

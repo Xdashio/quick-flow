@@ -5,14 +5,14 @@ export declare class InventoryController {
     constructor(service: InventoryService);
     create(dto: CreateMovementDto): Promise<{
         movement: {
-            id: string;
-            createdAt: Date;
             productId: string;
             locationId: string;
             quantityDelta: import("@prisma/client-runtime-utils").Decimal;
             reason: string;
             referenceId: string | null;
             createdBy: string | null;
+            id: string;
+            createdAt: Date;
         };
         currentStock: {
             productId: string;
@@ -42,14 +42,14 @@ export declare class InventoryController {
         quantity: string;
     }[]>;
     list(productId?: string, locationId?: string): Promise<{
-        id: string;
-        createdAt: Date;
         productId: string;
         locationId: string;
         quantityDelta: import("@prisma/client-runtime-utils").Decimal;
         reason: string;
         referenceId: string | null;
         createdBy: string | null;
+        id: string;
+        createdAt: Date;
     }[]>;
     lowStock(): Promise<{
         productId: string;
@@ -59,4 +59,5 @@ export declare class InventoryController {
         reorderPoint: number;
         currentStock: number;
     }[]>;
+    getStockDetails(productId: string): Promise<import("./dto/product-stock-detail.dto").ProductStockDetailDto>;
 }

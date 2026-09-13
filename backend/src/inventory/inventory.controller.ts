@@ -22,10 +22,9 @@ export class InventoryController {
   @Get('current/:productId')
   getCurrent(
     @Param('productId', ParseUUIDPipe) productId: string,
-    @Query('locationId') locationId?: string,
+    @Query('locationId', new ParseUUIDPipe({ optional: true })) locationId?: string,
   ) {
     if (locationId) {
-      // validate UUID format loosely – let service handle not found
       return this.service.getCurrentStock(productId, locationId);
     }
     return this.service.getCurrentStock(productId);
@@ -43,5 +42,11 @@ export class InventoryController {
   @Get('low-stock')
   lowStock() {
     return this.service.getLowStock();
+  }
+
+  /** Detailed inventory breakdown for a product across all locations. */
+  @Get('stock/:productId')
+  getStockDetails(@Param('productId', ParseUUIDPipe) productId: string) {
+    return this.service.getProductStockDetails(productId);
   }
 }

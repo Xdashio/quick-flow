@@ -1,11 +1,17 @@
 'use client';
-
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Select } from './Select';
 import { ConfirmDialog } from './ConfirmDialog';
+import { formatKes, formatStock, getStockStatus } from '../lib/format';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
+export interface Location {
+  id: string;
+  name: string;
+  address?: string | null;
+}
+
 interface Product {
   id: string;
   sku: string;
@@ -23,6 +29,7 @@ interface Product {
   imageUrl: string | null;
   categoryId: string | null;
   reorderPoint: number | null;
+  totalStock?: number;
   taxCategory?: { id: string; name: string; rateBp: number } | null;
 }
 
@@ -33,13 +40,10 @@ interface Props {
   products: Product[];
   categories: Category[];
   taxCategories: TaxCategory[];
+  locations?: Location[];
 }
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
-function formatKes(cents: number) {
-  return `KES ${(cents / 100).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function initials(name: string) {
   return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
 }
@@ -80,6 +84,9 @@ function ProductCard({ product, onEdit, highlighted = false }: { product: Produc
   const cardImageUrl = resolveImageUrl(product);
   const [imgFailed, setImgFailed] = useState(false);
   const showImg = Boolean(cardImageUrl) && !imgFailed;
+
+  const stock = product.totalStock ?? 0;
+  const stockInfo = getStockStatus(stock, product.reorderPoint, product.unitType, product.isWeighed);
 
   return (
     <div
@@ -178,21 +185,39 @@ function ProductCard({ product, onEdit, highlighted = false }: { product: Produc
 
       {/* Bottom bar */}
       <div style={{
-        padding: '8px 16px',
+        padding: '8px 14px',
         borderTop: '1px solid var(--border-subtle)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: 'var(--bg-surface-elevated)',
+        gap: 8,
       }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          {product.unitType}{product.isWeighed ? ' · weighed' : ''}
-        </span>
         <span style={{
-          fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 'var(--radius-pill)',
-          background: product.active ? 'var(--accent-emerald-bg)' : 'var(--bg-surface-subtle)',
-          color: product.active ? 'var(--accent-emerald)' : 'var(--text-muted)',
+          fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)',
+          background: stockInfo.bg,
+          color: stockInfo.color,
+          border: stockInfo.border,
+          fontFamily: 'var(--font-mono)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          whiteSpace: 'nowrap',
         }}>
-          {product.active ? 'Active' : 'Inactive'}
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: stockInfo.dotColor, flexShrink: 0 }} />
+          {stockInfo.label}
         </span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            {product.unitType}{product.isWeighed ? ' · w' : ''}
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 'var(--radius-pill)',
+            background: product.active ? 'var(--accent-emerald-bg)' : 'var(--bg-surface-subtle)',
+            color: product.active ? 'var(--accent-emerald)' : 'var(--text-muted)',
+          }}>
+            {product.active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -200,11 +225,12 @@ function ProductCard({ product, onEdit, highlighted = false }: { product: Produc
 
 /* ─── EditPanel (Slide-over) ──────────────────────────────────────────────── */
 function EditPanel({
-  product, categories, taxCategories, onClose, onSaved,
+  product, categories, taxCategories, locations = [], onClose, onSaved,
 }: {
   product: Product | null;
   categories: Category[];
   taxCategories: TaxCategory[];
+  locations?: Location[];
   onClose: () => void;
   /** Merge an updated product into the grid immediately (optimistic UI + rollback). */
   onSaved: (saved: Product, isNew?: boolean) => void;
@@ -226,6 +252,55 @@ function EditPanel({
   const [isWeighed, setIsWeighed] = useState(product?.isWeighed ?? false);
   const [reorderPoint, setReorderPoint] = useState(product?.reorderPoint !== null && product?.reorderPoint !== undefined ? String(product.reorderPoint) : '');
   const [active, setActive] = useState(product?.active ?? true);
+
+  // Initial stock for New Product
+  const [initialStock, setInitialStock] = useState('');
+  const [initialLocationId, setInitialLocationId] = useState(locations[0]?.id ?? '');
+
+  useEffect(() => {
+    if (!initialLocationId && locations.length > 0) {
+      setInitialLocationId(locations[0].id);
+    }
+  }, [locations, initialLocationId]);
+
+  // Inventory breakdown & inline adjustments for Edit Product
+  const [stockDetails, setStockDetails] = useState<{
+    productId: string;
+    totalStock: number;
+    locations: Array<{ locationId: string; locationName: string; quantity: number }>;
+  } | null>(null);
+  const [loadingStock, setLoadingStock] = useState(false);
+
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustLocationId, setAdjustLocationId] = useState(locations[0]?.id ?? '');
+  const [adjustReason, setAdjustReason] = useState('receiving');
+  const [adjustDirection, setAdjustDirection] = useState<'add' | 'sub'>('add');
+  const [adjustQty, setAdjustQty] = useState('');
+  const [adjusting, setAdjusting] = useState(false);
+  const [adjustSuccess, setAdjustSuccess] = useState('');
+  const [adjustError, setAdjustError] = useState('');
+
+  const fetchStockDetails = useCallback(async () => {
+    if (!product?.id) return;
+    setLoadingStock(true);
+    try {
+      const res = await fetch(`/api/proxy/inventory/stock/${product.id}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setStockDetails(data);
+      }
+    } catch {
+      // Ignore network errors on passive stock poll
+    } finally {
+      setLoadingStock(false);
+    }
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (!isCreate) {
+      fetchStockDetails();
+    }
+  }, [isCreate, fetchStockDetails]);
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -322,6 +397,63 @@ function EditPanel({
     } finally { setRemoving(false); }
   }
 
+  /* ── Record Stock Adjustment (Edit Mode) ── */
+  async function handleRecordAdjustment() {
+    const qtyNum = parseFloat(adjustQty);
+    if (isNaN(qtyNum) || qtyNum <= 0) {
+      setAdjustError('Enter a quantity greater than 0');
+      return;
+    }
+    const targetLoc = adjustLocationId || locations[0]?.id;
+    if (!targetLoc) {
+      setAdjustError('Select an outlet location');
+      return;
+    }
+
+    setAdjusting(true);
+    setAdjustError('');
+    setAdjustSuccess('');
+
+    const signedDelta = adjustDirection === 'add' ? qtyNum : -qtyNum;
+    try {
+      const res = await fetch('/api/proxy/inventory/movements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          productId: product!.id,
+          locationId: targetLoc,
+          quantityDelta: signedDelta,
+          reason: adjustReason,
+        }),
+      });
+
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({} as { message?: unknown }));
+        const msg = Array.isArray(d.message)
+          ? d.message.join(', ')
+          : typeof d.message === 'string'
+            ? d.message
+            : 'Failed to record movement';
+        throw new Error(msg);
+      }
+
+      await fetchStockDetails();
+      const currentTotal = product!.totalStock ?? stockDetails?.totalStock ?? 0;
+      const newTotal = currentTotal + signedDelta;
+      onSaved({ ...product!, totalStock: newTotal }, false);
+
+      setAdjustSuccess(`Recorded ${signedDelta > 0 ? '+' : ''}${formatStock(signedDelta, product!.isWeighed, product!.unitType)} (${adjustReason})`);
+      setAdjustQty('');
+      router.refresh();
+      setTimeout(() => setAdjustSuccess(''), 4000);
+    } catch (e) {
+      setAdjustError(e instanceof Error ? e.message : 'Adjustment failed');
+    } finally {
+      setAdjusting(false);
+    }
+  }
+
   /* ── Save product details ── */
   async function handleSave() {
     if (!name.trim()) { setError('Product name is required'); return; }
@@ -336,6 +468,12 @@ function EditPanel({
     const priceCentsVal = Math.round(price * 100);
     const costCentsVal = costNum === null ? null : Math.round(costNum * 100);
     const taxCat = taxCategories.find((t) => t.id === taxCategoryId) ?? null;
+
+    const initialStockNum = initialStock.trim() ? parseFloat(initialStock) : 0;
+    if (isCreate && initialStockNum > 0 && !initialLocationId) {
+      setError('Please select a receiving location for initial stock');
+      return;
+    }
 
     setSaving(true); setError(''); setSuccess(false);
 
@@ -353,6 +491,8 @@ function EditPanel({
           unitType,
           isWeighed,
           reorderPoint: reorderNum ?? undefined,
+          initialStock: initialStockNum > 0 ? initialStockNum : undefined,
+          initialLocationId: initialStockNum > 0 ? initialLocationId : undefined,
           active,
         };
 
@@ -365,7 +505,12 @@ function EditPanel({
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({} as { message?: unknown }));
-          throw new Error(typeof data.message === 'string' ? data.message : 'Failed to create product');
+          const msg = Array.isArray(data.message)
+            ? data.message.join(', ')
+            : typeof data.message === 'string'
+              ? data.message
+              : 'Failed to create product';
+          throw new Error(msg);
         }
 
         const created = (await res.json()) as Product;
@@ -421,7 +566,12 @@ function EditPanel({
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({} as { message?: unknown }));
-          throw new Error(typeof data.message === 'string' ? data.message : 'Save failed');
+          const msg = Array.isArray(data.message)
+            ? data.message.join(', ')
+            : typeof data.message === 'string'
+              ? data.message
+              : 'Save failed';
+          throw new Error(msg);
         }
 
         setSuccess(true);
@@ -435,6 +585,12 @@ function EditPanel({
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally { setSaving(false); }
   }
+
+  /* ── Current Stock Info for Edit Mode ── */
+  const currentTotalStock = product?.totalStock ?? stockDetails?.totalStock ?? 0;
+  const currentStockInfo = product
+    ? getStockStatus(currentTotalStock, product.reorderPoint, product.unitType, product.isWeighed)
+    : null;
 
   return (
     <>
@@ -666,17 +822,318 @@ function EditPanel({
           </fieldset>
 
           {/* ── Inventory ── */}
-          <fieldset style={fieldset}>
-            <legend style={legendStyle}>Inventory</legend>
-            <div style={formGroup}>
-              <label style={inputLabel}>Reorder Point (units)</label>
-              <input style={{ ...inputStyle, width: 160 }} type="number" min={0} step={1}
-                value={reorderPoint} onChange={e => setReorderPoint(e.target.value)} placeholder="e.g. 10" />
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                Alert when stock falls to or below this quantity
-              </p>
-            </div>
-          </fieldset>
+          {isCreate ? (
+            <fieldset style={fieldset}>
+              <legend style={legendStyle}>Inventory & Opening Stock</legend>
+              <div className="form-grid-2col">
+                <div style={formGroup}>
+                  <label style={inputLabel}>Initial Stock (optional)</label>
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min={0}
+                    step={isWeighed ? 0.001 : 1}
+                    value={initialStock}
+                    onChange={e => setInitialStock(e.target.value)}
+                    placeholder={isWeighed ? '0.000' : '0'}
+                  />
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Starting count received on creation
+                  </p>
+                </div>
+                <div style={formGroup}>
+                  <label style={inputLabel}>Receiving Location</label>
+                  <Select
+                    id="initial-stock-location"
+                    value={initialLocationId}
+                    onChange={setInitialLocationId}
+                    options={
+                      locations.length > 0
+                        ? locations.map(l => ({ value: l.id, label: l.name }))
+                        : [{ value: '', label: 'Default Outlet' }]
+                    }
+                    disabled={!initialStock || parseFloat(initialStock) <= 0}
+                  />
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Outlet location receiving initial balance
+                  </p>
+                </div>
+              </div>
+
+              <div style={formGroup}>
+                <label style={inputLabel}>Reorder Point (units)</label>
+                <input
+                  style={{ ...inputStyle, width: 160 }}
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={reorderPoint}
+                  onChange={e => setReorderPoint(e.target.value)}
+                  placeholder="e.g. 10"
+                />
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Alert when stock falls to or below this quantity
+                </p>
+              </div>
+            </fieldset>
+          ) : (
+            <fieldset style={fieldset}>
+              <legend style={legendStyle}>Inventory & Stock Levels</legend>
+
+              {/* Total Stock Summary Banner */}
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--bg-surface-subtle)',
+                border: '1px solid var(--border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Total Available Stock
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                      {formatStock(currentTotalStock, product!.isWeighed, product!.unitType)}
+                    </span>
+                  </div>
+                </div>
+                {currentStockInfo && (
+                  <span style={{
+                    padding: '4px 10px',
+                    borderRadius: 'var(--radius-pill)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    background: currentStockInfo.bg,
+                    color: currentStockInfo.color,
+                    border: currentStockInfo.border,
+                  }}>
+                    {currentStockInfo.label}
+                  </span>
+                )}
+              </div>
+
+              {/* Reorder Point Input */}
+              <div style={formGroup}>
+                <label style={inputLabel}>Reorder Point (units)</label>
+                <input
+                  style={{ ...inputStyle, width: 160 }}
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={reorderPoint}
+                  onChange={e => setReorderPoint(e.target.value)}
+                  placeholder="e.g. 10"
+                />
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Alert when stock falls to or below this quantity
+                </p>
+              </div>
+
+              {/* Location Breakdown */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <label style={inputLabel}>Stock by Location</label>
+                  {loadingStock && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Refreshing…</span>}
+                </div>
+                <div style={{
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  overflow: 'hidden',
+                  background: 'var(--bg-surface)',
+                }}>
+                  {stockDetails?.locations && stockDetails.locations.length > 0 ? (
+                    stockDetails.locations.map((loc, idx) => (
+                      <div
+                        key={loc.locationId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          borderBottom: idx === stockDetails.locations.length - 1 ? 'none' : '1px solid var(--border-subtle)',
+                          fontSize: 12,
+                        }}
+                      >
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{loc.locationName}</span>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 600,
+                          color: loc.quantity <= 0 ? 'var(--accent-rose)' : 'var(--text-primary)',
+                        }}>
+                          {formatStock(loc.quantity, product!.isWeighed, product!.unitType)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '12px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+                      {loadingStock ? 'Loading location balances…' : 'No location inventory recorded yet'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Inline Stock Movement Action */}
+              <div style={{ marginTop: 6 }}>
+                {!adjustOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setAdjustOpen(true)}
+                    style={{
+                      ...secondaryBtn,
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    <span>Record Stock Movement</span>
+                  </button>
+                ) : (
+                  <div style={{
+                    padding: '14px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-strong)',
+                    background: 'var(--bg-surface-subtle)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Quick Stock Adjustment
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setAdjustOpen(false); setAdjustError(''); setAdjustSuccess(''); }}
+                        style={{
+                          background: 'none', border: 'none', color: 'var(--text-muted)',
+                          cursor: 'pointer', fontSize: 12, padding: 2,
+                        }}
+                      >
+                        ✕ Cancel
+                      </button>
+                    </div>
+
+                    {adjustSuccess && (
+                      <div style={{ padding: '8px 12px', background: 'var(--accent-emerald-bg)', color: 'var(--accent-emerald)', borderRadius: 'var(--radius-sm)', fontSize: 12 }}>
+                        {adjustSuccess}
+                      </div>
+                    )}
+                    {adjustError && (
+                      <div style={{ padding: '8px 12px', background: 'var(--accent-rose-bg)', color: 'var(--accent-rose)', borderRadius: 'var(--radius-sm)', fontSize: 12 }}>
+                        {adjustError}
+                      </div>
+                    )}
+
+                    <div className="form-grid-2col">
+                      <div style={formGroup}>
+                        <label style={inputLabel}>Location</label>
+                        <Select
+                          id={`adjust-loc-${product!.id}`}
+                          value={adjustLocationId}
+                          onChange={setAdjustLocationId}
+                          options={locations.map(l => ({ value: l.id, label: l.name }))}
+                        />
+                      </div>
+                      <div style={formGroup}>
+                        <label style={inputLabel}>Movement Reason</label>
+                        <Select
+                          id={`adjust-reason-${product!.id}`}
+                          value={adjustReason}
+                          onChange={setAdjustReason}
+                          options={[
+                            { value: 'receiving', label: 'Receiving / Intake' },
+                            { value: 'adjustment', label: 'Manual Correction' },
+                            { value: 'shrinkage', label: 'Loss / Shrinkage' },
+                            { value: 'waste', label: 'Waste / Spoilage' },
+                            { value: 'return', label: 'Customer Return' },
+                          ]}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <label style={inputLabel}>Direction</label>
+                        <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+                          <button
+                            type="button"
+                            onClick={() => setAdjustDirection('add')}
+                            style={{
+                              padding: '7px 12px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              border: 'none',
+                              cursor: 'pointer',
+                              background: adjustDirection === 'add' ? 'var(--accent-emerald)' : 'var(--bg-surface)',
+                              color: adjustDirection === 'add' ? '#fff' : 'var(--text-secondary)',
+                            }}
+                          >
+                            + Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAdjustDirection('sub')}
+                            style={{
+                              padding: '7px 12px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              border: 'none',
+                              cursor: 'pointer',
+                              background: adjustDirection === 'sub' ? 'var(--accent-rose)' : 'var(--bg-surface)',
+                              color: adjustDirection === 'sub' ? '#fff' : 'var(--text-secondary)',
+                            }}
+                          >
+                            - Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ ...formGroup, flex: 1 }}>
+                        <label style={inputLabel}>Quantity ({product!.unitType})</label>
+                        <input
+                          style={inputStyle}
+                          type="number"
+                          min={0}
+                          step={product!.isWeighed ? 0.001 : 1}
+                          value={adjustQty}
+                          onChange={e => setAdjustQty(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleRecordAdjustment}
+                        disabled={adjusting || !adjustQty || parseFloat(adjustQty) <= 0}
+                        style={{
+                          padding: '9px 16px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: adjusting ? 'var(--bg-surface-subtle)' : 'var(--accent-primary)',
+                          color: adjusting ? 'var(--text-muted)' : '#fff',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          border: 'none',
+                          cursor: adjusting ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {adjusting ? 'Saving…' : 'Apply'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </fieldset>
+          )}
 
           {/* ── Error / Success ── */}
           {error && (
@@ -779,7 +1236,7 @@ const checkboxLabel: React.CSSProperties = {
 };
 
 /* ─── Main Grid Export ─────────────────────────────────────────────────────── */
-export function ProductsGrid({ products, categories, taxCategories }: Props) {
+export function ProductsGrid({ products, categories, taxCategories, locations = [] }: Props) {
   const [editing, setEditing] = useState<Product | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState('');
@@ -899,9 +1356,11 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
       {/* Edit slide-over */}
       {editing && (
         <EditPanel
+          key={editing.id}
           product={items.find((p) => p.id === editing.id) ?? editing}
           categories={categories}
           taxCategories={taxCategories}
+          locations={locations}
           onClose={() => setEditing(null)}
           onSaved={handleSaved}
         />
@@ -913,6 +1372,7 @@ export function ProductsGrid({ products, categories, taxCategories }: Props) {
           product={null}
           categories={categories}
           taxCategories={taxCategories}
+          locations={locations}
           onClose={() => setIsCreating(false)}
           onSaved={handleSaved}
         />

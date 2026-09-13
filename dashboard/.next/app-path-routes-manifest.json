@@ -7,11 +7,11 @@
   "/page": "/",
   "/(dashboard)/page": "/",
   "/(dashboard)/categories/page": "/categories",
-  "/(dashboard)/drawer/page": "/drawer",
   "/(dashboard)/inventory/page": "/inventory",
-  "/(dashboard)/overview/page": "/overview",
+  "/(dashboard)/drawer/page": "/drawer",
   "/(dashboard)/payments/page": "/payments",
   "/(dashboard)/users/page": "/users",
   "/(dashboard)/products/page": "/products",
-  "/login/page": "/login"
+  "/login/page": "/login",
+  "/(dashboard)/overview/page": "/overview"
 }

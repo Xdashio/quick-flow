@@ -22,17 +22,20 @@ interface Product {
   imageUrl: string | null;
   categoryId: string | null;
   reorderPoint: number | null;
+  totalStock?: number;
   taxCategory?: { id: string; name: string; rateBp: number } | null;
 }
 
 interface Category { id: string; name: string; parentId: string | null }
 interface TaxCategory { id: string; name: string; rateBp: number }
+interface Location { id: string; name: string; address?: string | null }
 
 export default async function ProductsPage() {
-  const [products, categories, taxCategories] = await Promise.all([
+  const [products, categories, taxCategories, locations] = await Promise.all([
     apiFetch<Product[]>('/products').catch(() => [] as Product[]),
     apiFetch<Category[]>('/categories').catch(() => [] as Category[]),
     apiFetch<TaxCategory[]>('/tax-categories').catch(() => [] as TaxCategory[]),
+    apiFetch<Location[]>('/locations').catch(() => [] as Location[]),
   ]);
 
   const activeCount = products.filter(p => p.active).length;
@@ -57,6 +60,7 @@ export default async function ProductsPage() {
               products={products}
               categories={categories}
               taxCategories={taxCategories}
+              locations={locations}
             />
           </div>
         </div>

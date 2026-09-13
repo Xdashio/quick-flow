@@ -3,7 +3,8 @@
  * Imported by backend, register, and dashboard — never duplicated.
  * Strict TypeScript 7, integer cents for money (never float).
  */
-export type UnitType = "each" | "kg" | "lb" | "oz";
+export type UnitType = "each" | "kg" | "g" | "lb" | "oz" | "litre" | "ml" | "dozen" | "pack" | "box";
+export declare const SUPPORTED_UNIT_TYPES: readonly UnitType[];
 export type TaxCategoryName = "standard" | "zero_rated" | "exempt";
 export type TransactionStatus = "DRAFT" | "IN_PROGRESS" | "AWAITING_PAYMENT" | "PAYMENT_CAPTURED" | "COMPLETED" | "PAYMENT_FAILED" | "VOIDED" | "REFUND_REQUESTED" | "REFUNDED" | "VOID_REQUESTED";
 export type PaymentMethod = "cash" | "mpesa_stk" | "mpesa_till" | "store_credit";
@@ -25,11 +26,31 @@ export interface Product {
     unitType: UnitType;
     isWeighed: boolean;
     priceCents: number;
+    costCents?: number | null;
+    profitCents?: number | null;
+    marginPct?: number | null;
     taxCategoryId: string | null;
     categoryId: string | null;
+    imageKey?: string | null;
+    imageUrl?: string | null;
+    reorderPoint?: number | null;
+    totalStock?: number;
     active: boolean;
     createdAt: string;
     updatedAt: string;
+}
+export interface LocationStock {
+    locationId: string;
+    locationName: string;
+    quantity: number;
+}
+export interface ProductStockDetail {
+    productId: string;
+    totalStock: number;
+    locations: LocationStock[];
+}
+export interface ProductWithStock extends Product {
+    totalStock: number;
 }
 export interface InventoryMovement {
     id: string;
@@ -116,8 +137,12 @@ export interface CreateProductDto {
     unitType?: UnitType;
     isWeighed?: boolean;
     priceCents: number;
+    costCents?: number | null;
+    reorderPoint?: number | null;
     taxCategoryId?: string | null;
     categoryId?: string | null;
+    initialStock?: number;
+    initialLocationId?: string;
 }
 export interface CreateTransactionDto {
     id?: string;

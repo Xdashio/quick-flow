@@ -15,6 +15,7 @@ interface Props {
   searchable?: boolean;
   placeholder?: string;
   searchPlaceholder?: string;
+  disabled?: boolean;
 }
 
 const MENU_MAX_HEIGHT = 280;
@@ -27,6 +28,7 @@ export function Select({
   searchable = true,
   placeholder = 'Select an option',
   searchPlaceholder = 'Search...',
+  disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
@@ -43,7 +45,7 @@ export function Select({
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, searchQuery, isSearchable]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!open || !rootRef.current) return;
 
     const updatePlacement = () => {
@@ -100,7 +102,9 @@ export function Select({
         className={`custom-select-trigger${open ? ' open' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        style={disabled ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
       >
         <span className={selected ? '' : 'custom-select-placeholder'}>
           {selected?.label ?? placeholder}

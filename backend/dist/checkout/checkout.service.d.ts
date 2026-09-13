@@ -15,25 +15,25 @@ export declare class CheckoutService {
             lineItems: ({
                 product: {
                     name: string;
+                    id: string;
                     sku: string;
                     barcode: string | null;
                     description: string | null;
                     unitType: string;
                     isWeighed: boolean;
                     priceCents: number;
-                    costCents: number | null;
                     taxCategoryId: string | null;
                     categoryId: string | null;
-                    active: boolean;
                     imageKey: string | null;
                     reorderPoint: number | null;
-                    id: string;
+                    costCents: number | null;
+                    active: boolean;
                     createdAt: Date;
                     updatedAt: Date;
                 };
             } & {
-                id: string;
                 productId: string;
+                id: string;
                 quantity: import("@prisma/client-runtime-utils").Decimal;
                 unitPriceCents: number;
                 discountCents: number;
@@ -54,9 +54,9 @@ export declare class CheckoutService {
                 etimsInvoiceNumber: string | null;
             }[];
         } & {
+            locationId: string;
             id: string;
             createdAt: Date;
-            locationId: string;
             registerId: string | null;
             cashierId: string | null;
             customerId: string | null;
@@ -80,11 +80,11 @@ export declare class CheckoutService {
             etimsInvoiceNumber: string | null;
         };
         drawerEvent: {
+            reason: string;
             id: string;
             createdAt: Date;
             registerId: string | null;
             amountCents: number | null;
-            reason: string;
             userId: string | null;
         };
         changeDueCents: number;
@@ -96,25 +96,25 @@ export declare class CheckoutService {
             lineItems: ({
                 product: {
                     name: string;
+                    id: string;
                     sku: string;
                     barcode: string | null;
                     description: string | null;
                     unitType: string;
                     isWeighed: boolean;
                     priceCents: number;
-                    costCents: number | null;
                     taxCategoryId: string | null;
                     categoryId: string | null;
-                    active: boolean;
                     imageKey: string | null;
                     reorderPoint: number | null;
-                    id: string;
+                    costCents: number | null;
+                    active: boolean;
                     createdAt: Date;
                     updatedAt: Date;
                 };
             } & {
-                id: string;
                 productId: string;
+                id: string;
                 quantity: import("@prisma/client-runtime-utils").Decimal;
                 unitPriceCents: number;
                 discountCents: number;
@@ -124,9 +124,9 @@ export declare class CheckoutService {
                 transactionId: string;
             })[];
         } & {
+            locationId: string;
             id: string;
             createdAt: Date;
-            locationId: string;
             registerId: string | null;
             cashierId: string | null;
             customerId: string | null;
@@ -156,25 +156,25 @@ export declare class CheckoutService {
             lineItems: ({
                 product: {
                     name: string;
+                    id: string;
                     sku: string;
                     barcode: string | null;
                     description: string | null;
                     unitType: string;
                     isWeighed: boolean;
                     priceCents: number;
-                    costCents: number | null;
                     taxCategoryId: string | null;
                     categoryId: string | null;
-                    active: boolean;
                     imageKey: string | null;
                     reorderPoint: number | null;
-                    id: string;
+                    costCents: number | null;
+                    active: boolean;
                     createdAt: Date;
                     updatedAt: Date;
                 };
             } & {
-                id: string;
                 productId: string;
+                id: string;
                 quantity: import("@prisma/client-runtime-utils").Decimal;
                 unitPriceCents: number;
                 discountCents: number;
@@ -184,9 +184,9 @@ export declare class CheckoutService {
                 transactionId: string;
             })[];
         } & {
+            locationId: string;
             id: string;
             createdAt: Date;
-            locationId: string;
             registerId: string | null;
             cashierId: string | null;
             customerId: string | null;
@@ -216,25 +216,25 @@ export declare class CheckoutService {
             lineItems: ({
                 product: {
                     name: string;
+                    id: string;
                     sku: string;
                     barcode: string | null;
                     description: string | null;
                     unitType: string;
                     isWeighed: boolean;
                     priceCents: number;
-                    costCents: number | null;
                     taxCategoryId: string | null;
                     categoryId: string | null;
-                    active: boolean;
                     imageKey: string | null;
                     reorderPoint: number | null;
-                    id: string;
+                    costCents: number | null;
+                    active: boolean;
                     createdAt: Date;
                     updatedAt: Date;
                 };
             } & {
-                id: string;
                 productId: string;
+                id: string;
                 quantity: import("@prisma/client-runtime-utils").Decimal;
                 unitPriceCents: number;
                 discountCents: number;
@@ -244,9 +244,9 @@ export declare class CheckoutService {
                 transactionId: string;
             })[];
         } & {
+            locationId: string;
             id: string;
             createdAt: Date;
-            locationId: string;
             registerId: string | null;
             cashierId: string | null;
             customerId: string | null;
@@ -263,25 +263,25 @@ export declare class CheckoutService {
                 lineItems: ({
                     product: {
                         name: string;
+                        id: string;
                         sku: string;
                         barcode: string | null;
                         description: string | null;
                         unitType: string;
                         isWeighed: boolean;
                         priceCents: number;
-                        costCents: number | null;
                         taxCategoryId: string | null;
                         categoryId: string | null;
-                        active: boolean;
                         imageKey: string | null;
                         reorderPoint: number | null;
-                        id: string;
+                        costCents: number | null;
+                        active: boolean;
                         createdAt: Date;
                         updatedAt: Date;
                     };
                 } & {
-                    id: string;
                     productId: string;
+                    id: string;
                     quantity: import("@prisma/client-runtime-utils").Decimal;
                     unitPriceCents: number;
                     discountCents: number;
@@ -291,9 +291,9 @@ export declare class CheckoutService {
                     transactionId: string;
                 })[];
             } & {
+                locationId: string;
                 id: string;
                 createdAt: Date;
-                locationId: string;
                 registerId: string | null;
                 cashierId: string | null;
                 customerId: string | null;
@@ -324,11 +324,11 @@ export declare class CheckoutService {
         reason: string;
         amountCents?: number;
     }): Promise<{
+        reason: string;
         id: string;
         createdAt: Date;
         registerId: string | null;
         amountCents: number | null;
-        reason: string;
         userId: string | null;
     }>;
 }

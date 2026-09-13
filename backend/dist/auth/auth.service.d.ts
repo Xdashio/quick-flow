@@ -19,8 +19,8 @@ export declare class AuthService {
     }>;
     getMe(userId: string): Promise<{
         name: string;
-        active: boolean;
         id: string;
+        active: boolean;
         createdAt: Date;
         role: string;
     }>;

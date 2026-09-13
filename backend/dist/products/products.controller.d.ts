@@ -5,6 +5,7 @@ export declare class ProductsController {
     private readonly productsService;
     constructor(productsService: ProductsService);
     create(dto: CreateProductDto): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -17,21 +18,20 @@ export declare class ProductsController {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -40,6 +40,7 @@ export declare class ProductsController {
         marginPct: number | null;
     }>;
     findAll(): Promise<({
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -52,21 +53,20 @@ export declare class ProductsController {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -75,6 +75,7 @@ export declare class ProductsController {
         marginPct: number | null;
     })[]>;
     findByBarcode(barcode: string): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -87,21 +88,20 @@ export declare class ProductsController {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -110,6 +110,7 @@ export declare class ProductsController {
         marginPct: number | null;
     }>;
     findOne(id: string): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -122,21 +123,20 @@ export declare class ProductsController {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -145,6 +145,7 @@ export declare class ProductsController {
         marginPct: number | null;
     }>;
     update(id: string, dto: UpdateProductDto): Promise<{
+        totalStock: number;
         taxCategory: {
             name: string;
             id: string;
@@ -157,21 +158,20 @@ export declare class ProductsController {
             id: string;
             parentId: string | null;
         } | null;
-    } & {
         name: string;
+        id: string;
         sku: string;
         barcode: string | null;
         description: string | null;
         unitType: string;
         isWeighed: boolean;
         priceCents: number;
-        costCents: number | null;
         taxCategoryId: string | null;
         categoryId: string | null;
-        active: boolean;
         imageKey: string | null;
         reorderPoint: number | null;
-        id: string;
+        costCents: number | null;
+        active: boolean;
         createdAt: Date;
         updatedAt: Date;
     } & {
@@ -189,19 +189,19 @@ export declare class ProductsController {
         deactivated: boolean;
         product: {
             name: string;
+            id: string;
             sku: string;
             barcode: string | null;
             description: string | null;
             unitType: string;
             isWeighed: boolean;
             priceCents: number;
-            costCents: number | null;
             taxCategoryId: string | null;
             categoryId: string | null;
-            active: boolean;
             imageKey: string | null;
             reorderPoint: number | null;
-            id: string;
+            costCents: number | null;
+            active: boolean;
             createdAt: Date;
             updatedAt: Date;
         } & {

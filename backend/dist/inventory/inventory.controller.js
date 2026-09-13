@@ -36,6 +36,9 @@ let InventoryController = class InventoryController {
     lowStock() {
         return this.service.getLowStock();
     }
+    getStockDetails(productId) {
+        return this.service.getProductStockDetails(productId);
+    }
 };
 exports.InventoryController = InventoryController;
 __decorate([
@@ -48,7 +51,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('current/:productId'),
     __param(0, (0, common_1.Param)('productId', common_1.ParseUUIDPipe)),
-    __param(1, (0, common_1.Query)('locationId')),
+    __param(1, (0, common_1.Query)('locationId', new common_1.ParseUUIDPipe({ optional: true }))),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
@@ -67,6 +70,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], InventoryController.prototype, "lowStock", null);
+__decorate([
+    (0, common_1.Get)('stock/:productId'),
+    __param(0, (0, common_1.Param)('productId', common_1.ParseUUIDPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], InventoryController.prototype, "getStockDetails", null);
 exports.InventoryController = InventoryController = __decorate([
     (0, common_1.Controller)('inventory'),
     __metadata("design:paramtypes", [inventory_service_1.InventoryService])

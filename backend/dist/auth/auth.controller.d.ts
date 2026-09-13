@@ -13,8 +13,8 @@ export declare class AuthController {
     }>;
     me(req: any): Promise<{
         name: string;
-        active: boolean;
         id: string;
+        active: boolean;
         createdAt: Date;
         role: string;
     }>;

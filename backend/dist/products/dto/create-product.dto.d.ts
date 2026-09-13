@@ -12,4 +12,6 @@ export declare class CreateProductDto {
     active?: boolean;
     imageKey?: string;
     reorderPoint?: number;
+    initialStock?: number;
+    initialLocationId?: string;
 }

@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsBoolean,
   IsInt,
+  IsNumber,
   IsUUID,
   IsIn,
   MaxLength,
@@ -77,4 +78,15 @@ export class CreateProductDto {
   @IsInt()
   @Min(0)
   reorderPoint?: number;
+
+  /** Optional opening inventory to receive upon product creation. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  initialStock?: number;
+
+  /** Location ID where the initial stock should be received. Required if initialStock > 0. */
+  @IsOptional()
+  @IsUUID()
+  initialLocationId?: string;
 }
