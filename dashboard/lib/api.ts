@@ -1,6 +1,12 @@
 import { cookies } from 'next/headers';
 
-const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:3000';
+function getBackendUrl(): string {
+  const raw =
+    process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
+  return raw.trim().replace(/\/$/, '');
+}
+
+const BACKEND = getBackendUrl();
 
 /** Server-side authenticated fetch — reads JWT from httpOnly cookie */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

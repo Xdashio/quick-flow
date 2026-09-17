@@ -1,4 +1,4 @@
-// File: /home/xdashio/Desktop/POS/dashboard/app/api/proxy/[...path]/route.ts
+// File: /home/xdashio/Work/quick-flow/dashboard/app/api/proxy/[...path]/route.ts
 import * as entry from '../../../../../../app/api/proxy/[...path]/route.js'
 import type { NextRequest } from 'next/server.js'
 

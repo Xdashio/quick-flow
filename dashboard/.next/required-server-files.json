@@ -105,7 +105,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/home/xdashio/Desktop/POS",
+    "outputFileTracingRoot": "/home/xdashio/Work/quick-flow",
     "enablePrerenderSourceMaps": true,
     "cacheComponents": false,
     "cacheLife": {
@@ -323,14 +323,14 @@
     "transpilePackages": [
       "@pos/shared"
     ],
-    "repoRoot": "/home/xdashio/Desktop/POS",
+    "repoRoot": "/home/xdashio/Work/quick-flow",
     "turbopack": {
-      "root": "/home/xdashio/Desktop/POS"
+      "root": "/home/xdashio/Work/quick-flow"
     },
     "distDirRoot": ".next",
     "supportsImmutableAssets": false
   },
-  "appDir": "/home/xdashio/Desktop/POS/dashboard",
+  "appDir": "/home/xdashio/Work/quick-flow/dashboard",
   "relativeAppDir": "dashboard",
   "files": [
     ".next/package.json",

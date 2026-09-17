@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:3000';
+function getBackendUrl(): string {
+  const raw =
+    process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
+  return raw.trim().replace(/\/$/, '');
+}
+
+const UPSTREAM_TIMEOUT_MS = 10_000;
 
 /**
  * Same-origin proxy for client components that need to call the backend
@@ -20,6 +26,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   const cookieStore = await cookies();
   const token = cookieStore.get('pos_session')?.value;
 
+  const BACKEND = getBackendUrl();
   const target = `${BACKEND}/api/${path.join('/')}${req.nextUrl.search}`;
 
   const headers: Record<string, string> = {};
@@ -29,12 +36,23 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
 
   const hasBody = !['GET', 'HEAD'].includes(req.method);
 
-  const upstream = await fetch(target, {
-    method: req.method,
-    headers,
-    body: hasBody ? await req.text() : undefined,
-    cache: 'no-store',
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: req.method,
+      headers,
+      body: hasBody ? await req.text() : undefined,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Backend connection error';
+    console.error(`[Proxy Error] ${req.method} ${target}:`, message);
+    return NextResponse.json(
+      { message: `Backend unreachable (${BACKEND}): ${message}` },
+      { status: 503 },
+    );
+  }
 
   const body = await upstream.text();
   return new NextResponse(body, {

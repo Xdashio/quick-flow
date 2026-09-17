@@ -51,4 +51,11 @@ async function bootstrap() {
   // eslint-disable-next-line no-console
   console.log(`Backend listening on port ${port} on 0.0.0.0`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  // On HostPinnacle/Passenger an unhandled rejection kills the app and the
+  // front proxy answers every request (including /api/auth/login) with a bare
+  // 503. Log the real cause so it lands in the cPanel stderr log instead.
+  // eslint-disable-next-line no-console
+  console.error('Backend failed to start:', err?.message ?? err);
+  process.exit(1);
+});

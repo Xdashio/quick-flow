@@ -40,5 +40,8 @@ async function bootstrap() {
     await app.listen(port, '0.0.0.0');
     console.log(`Backend listening on port ${port} on 0.0.0.0`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+    console.error('Backend failed to start:', err?.message ?? err);
+    process.exit(1);
+});
 //# sourceMappingURL=main.js.map

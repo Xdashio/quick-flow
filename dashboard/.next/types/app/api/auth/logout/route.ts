@@ -1,4 +1,4 @@
-// File: /home/xdashio/Desktop/POS/dashboard/app/api/auth/logout/route.ts
+// File: /home/xdashio/Work/quick-flow/dashboard/app/api/auth/logout/route.ts
 import * as entry from '../../../../../../app/api/auth/logout/route.js'
 import type { NextRequest } from 'next/server.js'
 

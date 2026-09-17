@@ -1,4 +1,4 @@
-// File: /home/xdashio/Desktop/POS/dashboard/app/layout.tsx
+// File: /home/xdashio/Work/quick-flow/dashboard/app/layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
