@@ -2,6 +2,7 @@
 
 import { DataTable, Column } from '../../../components/DataTable';
 import { DeactivateButton } from '../../../components/DeactivateButton';
+import { EditUserDialog } from '../../../components/EditUserDialog';
 import { formatDate } from '../../../lib/format';
 
 export interface StaffUser {
@@ -34,7 +35,14 @@ function roleBadge(role: string) {
   );
 }
 
-const columns: Column<StaffUser>[] = [
+export interface CurrentStaffUser {
+  id: string;
+  name: string;
+  role: string;
+}
+
+function buildColumns(currentUser: CurrentStaffUser): Column<StaffUser>[] {
+  return [
   {
     key: 'name',
     header: 'Staff Name',
@@ -45,6 +53,9 @@ const columns: Column<StaffUser>[] = [
           {userInitials(u.name)}
         </span>
         <span className="font-bold">{u.name}</span>
+        {u.id === currentUser.id && (
+          <span className="badge badge-mineral" title="This is you">you</span>
+        )}
       </span>
     ),
   },
@@ -72,23 +83,34 @@ const columns: Column<StaffUser>[] = [
     header: 'Actions',
     pinned: 'right',
     cell: (u) => (
-      <DeactivateButton
-        userId={u.id}
-        userName={u.name}
-        isActive={u.active}
-        role={u.role}
-      />
+      <span style={{ display: 'inline-flex', gap: 8 }}>
+        <EditUserDialog
+          userId={u.id}
+          userName={u.name}
+          role={u.role}
+          currentUserId={currentUser.id}
+          currentRole={currentUser.role}
+        />
+        <DeactivateButton
+          userId={u.id}
+          userName={u.name}
+          isActive={u.active}
+          role={u.role}
+          currentUserId={currentUser.id}
+        />
+      </span>
     ),
   },
-];
+  ];
+}
 
-export function UsersTable({ data }: { data: StaffUser[] }) {
+export function UsersTable({ data, currentUser }: { data: StaffUser[]; currentUser: CurrentStaffUser }) {
   return (
     <DataTable<StaffUser>
       title="System Staff Members"
       subtitle="Registered operators and security roles"
       data={data}
-      columns={columns}
+      columns={buildColumns(currentUser)}
       searchKey="name"
       searchPlaceholder="Search staff members..."
       emptyMessage="No users found."

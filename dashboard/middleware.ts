@@ -31,7 +31,28 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+
+    // The dashboard is the manager console — cashier accounts belong on the
+    // register till (numeric PIN keypad), never here. Bounce them back to the
+    // login page with an explanation instead of letting them in.
+    if ((payload as { role?: string }).role === 'cashier') {
+      console.warn('[middleware] cashier attempted dashboard access');
+      if (pathname.startsWith('/api/')) {
+        const res = NextResponse.json(
+          { message: 'Cashier accounts must sign in at the register till.' },
+          { status: 403 },
+        );
+        res.cookies.delete('pos_session');
+        return res;
+      }
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('reason', 'cashier');
+      const response = NextResponse.redirect(loginUrl);
+      response.cookies.delete('pos_session');
+      return response;
+    }
+
     return NextResponse.next();
   } catch (err) {
     // Invalid or expired token — logged so a secret mismatch shows up in

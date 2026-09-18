@@ -4,25 +4,50 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Select } from './Select';
 
-const ROLE_OPTIONS = [
+const ALL_ROLES = [
   { value: 'cashier', label: 'Cashier (Register Access)' },
   { value: 'manager', label: 'Manager (Inventory & Reports)' },
   { value: 'admin', label: 'Admin (Full Access)' },
 ];
 
-export function CreateUserForm() {
+export function CreateUserForm({ currentRole }: { currentRole: string }) {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
+  const [credential, setCredential] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [role, setRole] = useState('cashier');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Managers may only create cashiers; admins may create any role.
+  const roleOptions =
+    currentRole === 'admin' ? ALL_ROLES : ALL_ROLES.filter((r) => r.value === 'cashier');
+  const isCashierRole = role === 'cashier';
+
+  function validateClient(): string | null {
+    if (isCashierRole) {
+      if (!/^\d{4,6}$/.test(credential)) return 'Cashier PIN must be 4–6 digits (numbers only).';
+    } else {
+      if (credential.length < 8) return 'Manager/Admin password must be at least 8 characters.';
+      if (!/[A-Za-z]/.test(credential) || !/\d/.test(credential)) {
+        return 'Manager/Admin password must contain both letters and numbers.';
+      }
+      if (credential !== confirm) return 'Passwords do not match.';
+    }
+    return null;
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    const clientError = validateClient();
+    if (clientError) {
+      setError(clientError);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -30,7 +55,7 @@ export function CreateUserForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name, password, role }),
+        body: JSON.stringify({ name, password: credential, role }),
       });
 
       if (!res.ok) {
@@ -40,9 +65,14 @@ export function CreateUserForm() {
       }
 
       const user = await res.json();
-      setSuccess(`Created user "${user.name}" (${user.role})`);
+      setSuccess(
+        isCashierRole
+          ? `Created cashier "${user.name}" — PIN set, ready for the till.`
+          : `Created ${user.role} "${user.name}".`,
+      );
       setName('');
-      setPassword('');
+      setCredential('');
+      setConfirm('');
       setRole('cashier');
       router.refresh();
     } catch {
@@ -96,17 +126,31 @@ export function CreateUserForm() {
       </div>
 
       <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <label htmlFor="new-user-password" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Password / Cashier PIN *
+        <label htmlFor="new-user-role" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Role Permission Level *
+        </label>
+        <Select id="new-user-role" value={role} onChange={setRole} options={roleOptions} />
+        {currentRole !== 'admin' && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Managers can only create cashier accounts.
+          </span>
+        )}
+      </div>
+
+      <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label htmlFor="new-user-credential" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {isCashierRole ? 'Cashier PIN *' : 'Password *'}
         </label>
         <input
-          id="new-user-password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Min 4 digits PIN or password"
+          id="new-user-credential"
+          type={isCashierRole ? 'text' : 'password'}
+          inputMode={isCashierRole ? 'numeric' : undefined}
+          autoComplete="new-password"
+          value={credential}
+          onChange={(e) => setCredential(isCashierRole ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)}
+          placeholder={isCashierRole ? '4–6 digit till PIN' : 'Min 8 chars, letters + numbers'}
           required
-          minLength={4}
+          minLength={isCashierRole ? 4 : 8}
           style={{
             width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-md)',
             background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-subtle)',
@@ -115,16 +159,34 @@ export function CreateUserForm() {
           }}
         />
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          Cashiers use this PIN or Password to sign into the POS register
+          {isCashierRole
+            ? 'Numeric PIN the cashier taps into the POS register keypad.'
+            : 'Full password for dashboard sign-in (never a plain PIN).'}
         </span>
       </div>
 
-      <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <label htmlFor="new-user-role" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Role Permission Level *
-        </label>
-        <Select id="new-user-role" value={role} onChange={setRole} options={ROLE_OPTIONS} />
-      </div>
+      {!isCashierRole && (
+        <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label htmlFor="new-user-confirm" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Confirm Password *
+          </label>
+          <input
+            id="new-user-confirm"
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Repeat the password"
+            required
+            style={{
+              width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-surface-subtle)', border: '1px solid var(--border-subtle)',
+              color: 'var(--text-primary)', fontSize: 13, fontFamily: 'var(--font-mono)',
+              outline: 'none', transition: 'border-color 0.15s ease'
+            }}
+          />
+        </div>
+      )}
 
       <button
         type="submit"

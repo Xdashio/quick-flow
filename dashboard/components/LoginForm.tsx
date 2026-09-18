@@ -1,14 +1,18 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Cashiers bounced by the middleware land here with ?reason=cashier.
+  const cashierNotice = searchParams.get('reason') === 'cashier';
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,6 +44,11 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} id="login-form" className="auth-form">
+      {cashierNotice && !error && (
+        <div className="auth-alert-error" role="alert">
+          Cashier accounts sign in at the register till — this console is for managers and admins.
+        </div>
+      )}
       {error && (
         <div className="auth-alert-error" role="alert">
           {error}

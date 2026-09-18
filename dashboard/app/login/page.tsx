@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { LoginForm } from '../../components/LoginForm';
 
 export const metadata: Metadata = {
@@ -18,7 +19,10 @@ export default function LoginPage() {
             <p className="auth-subtitle">Store Operations & Management Console</p>
           </header>
 
-          <LoginForm />
+          {/* Suspense boundary: LoginForm reads search params (cashier bounce notice) */}
+          <Suspense>
+            <LoginForm />
+          </Suspense>
         </div>
       </div>
     </main>

@@ -73,13 +73,47 @@ let UsersService = class UsersService {
             throw new common_1.NotFoundException(`User ${id} not found`);
         return user;
     }
-    async create(dto) {
-        const existing = await this.prisma.user.findFirst({
-            where: { name: { equals: dto.name, mode: 'insensitive' } },
-        });
-        if (existing) {
-            throw new common_1.ConflictException(`A user named "${dto.name}" already exists`);
+    assertCredentialPolicy(role, password) {
+        if (role === 'cashier') {
+            if (!/^\d{4,6}$/.test(password)) {
+                throw new common_1.BadRequestException('Cashier credential must be a numeric PIN of 4–6 digits.');
+            }
+            return;
         }
+        if (password.length < 8) {
+            throw new common_1.BadRequestException('Manager/Admin password must be at least 8 characters.');
+        }
+        if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+            throw new common_1.BadRequestException('Manager/Admin password must contain both letters and numbers.');
+        }
+    }
+    async assertNameUnique(name, exceptId) {
+        const existing = await this.prisma.user.findFirst({
+            where: { name: { equals: name, mode: 'insensitive' } },
+        });
+        if (existing && existing.id !== exceptId) {
+            throw new common_1.ConflictException(`A user named "${name}" already exists`);
+        }
+    }
+    async assertNotLastAdmin(targetId, action) {
+        const activeAdmins = await this.prisma.user.count({
+            where: { role: 'admin', active: true },
+        });
+        const target = await this.prisma.user.findUnique({ where: { id: targetId } });
+        const targetCounts = target?.role === 'admin' && target?.active === true;
+        if (targetCounts && activeAdmins <= 1) {
+            throw new common_1.BadRequestException(`Cannot ${action} the last active admin — promote another admin first.`);
+        }
+    }
+    async create(dto, actor) {
+        if (actor.role === 'cashier') {
+            throw new common_1.ForbiddenException('Cashiers cannot manage staff accounts.');
+        }
+        if (actor.role === 'manager' && dto.role !== 'cashier') {
+            throw new common_1.ForbiddenException('Managers can only create cashier accounts.');
+        }
+        this.assertCredentialPolicy(dto.role, dto.password);
+        await this.assertNameUnique(dto.name);
         const pinHash = await bcrypt.hash(dto.password, 12);
         return this.prisma.user.create({
             data: {
@@ -91,14 +125,42 @@ let UsersService = class UsersService {
             select: SAFE_SELECT,
         });
     }
-    async update(id, dto) {
-        const existing = await this.findOne(id);
-        if (existing.role === 'admin' && dto.active === false) {
-            throw new common_1.BadRequestException('Admin users cannot be deactivated');
+    async update(id, dto, actor) {
+        const target = await this.findOne(id);
+        if (actor.role === 'cashier') {
+            throw new common_1.ForbiddenException('Cashiers cannot manage staff accounts.');
+        }
+        if (id === actor.userId) {
+            throw new common_1.ForbiddenException('You cannot edit your own account here — use your profile instead.');
+        }
+        if (actor.role === 'manager') {
+            if (target.role !== 'cashier') {
+                throw new common_1.ForbiddenException('Managers can only manage cashier accounts.');
+            }
+            if (dto.role !== undefined) {
+                throw new common_1.ForbiddenException('Only admins can change user roles.');
+            }
+        }
+        if (dto.name !== undefined) {
+            const name = dto.name.trim();
+            if (!name)
+                throw new common_1.BadRequestException('Name cannot be empty.');
+            await this.assertNameUnique(name, id);
+        }
+        if (dto.password !== undefined) {
+            this.assertCredentialPolicy(dto.role ?? target.role, dto.password);
+        }
+        if (target.role === 'admin') {
+            if (dto.active === false) {
+                await this.assertNotLastAdmin(id, 'deactivate');
+            }
+            if (dto.role !== undefined && dto.role !== 'admin') {
+                await this.assertNotLastAdmin(id, 'demote');
+            }
         }
         const data = {};
         if (dto.name !== undefined)
-            data.name = dto.name;
+            data.name = dto.name.trim();
         if (dto.role !== undefined)
             data.role = dto.role;
         if (dto.active !== undefined)
@@ -108,6 +170,37 @@ let UsersService = class UsersService {
         }
         return this.prisma.user.update({
             where: { id },
+            data,
+            select: SAFE_SELECT,
+        });
+    }
+    async updateMe(actor, dto) {
+        const me = await this.findOne(actor.userId);
+        if (dto.name === undefined && dto.password === undefined) {
+            throw new common_1.BadRequestException('Nothing to update.');
+        }
+        const data = {};
+        if (dto.name !== undefined) {
+            const name = dto.name.trim();
+            if (!name)
+                throw new common_1.BadRequestException('Name cannot be empty.');
+            await this.assertNameUnique(name, me.id);
+            data.name = name;
+        }
+        if (dto.password !== undefined) {
+            if (!dto.currentPassword) {
+                throw new common_1.BadRequestException('Current password is required to set a new one.');
+            }
+            const full = await this.prisma.user.findUnique({ where: { id: me.id } });
+            const valid = full && (await bcrypt.compare(dto.currentPassword, full.pinHash));
+            if (!valid) {
+                throw new common_1.UnauthorizedException('Current password is incorrect.');
+            }
+            this.assertCredentialPolicy(me.role, dto.password);
+            data.pinHash = await bcrypt.hash(dto.password, 12);
+        }
+        return this.prisma.user.update({
+            where: { id: me.id },
             data,
             select: SAFE_SELECT,
         });

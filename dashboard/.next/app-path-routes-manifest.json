@@ -6,12 +6,12 @@
   "/api/proxy/[...path]/route": "/api/proxy/[...path]",
   "/page": "/",
   "/(dashboard)/page": "/",
-  "/(dashboard)/categories/page": "/categories",
   "/(dashboard)/inventory/page": "/inventory",
+  "/(dashboard)/categories/page": "/categories",
   "/(dashboard)/drawer/page": "/drawer",
-  "/(dashboard)/users/page": "/users",
-  "/(dashboard)/products/page": "/products",
-  "/(dashboard)/payments/page": "/payments",
   "/(dashboard)/overview/page": "/overview",
+  "/(dashboard)/payments/page": "/payments",
+  "/(dashboard)/products/page": "/products",
+  "/(dashboard)/users/page": "/users",
   "/login/page": "/login"
 }

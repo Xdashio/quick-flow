@@ -1,5 +1,10 @@
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { CreateUserDto, UpdateUserDto, UpdateProfileDto } from './dto/user.dto';
+export interface Actor {
+    userId: string;
+    name: string;
+    role: string;
+}
 export declare class UsersService {
     private readonly prisma;
     constructor(prisma: PrismaService);
@@ -17,14 +22,24 @@ export declare class UsersService {
         createdAt: Date;
         role: string;
     }>;
-    create(dto: CreateUserDto): Promise<{
+    private assertCredentialPolicy;
+    private assertNameUnique;
+    private assertNotLastAdmin;
+    create(dto: CreateUserDto, actor: Actor): Promise<{
         name: string;
         id: string;
         active: boolean;
         createdAt: Date;
         role: string;
     }>;
-    update(id: string, dto: UpdateUserDto): Promise<{
+    update(id: string, dto: UpdateUserDto, actor: Actor): Promise<{
+        name: string;
+        id: string;
+        active: boolean;
+        createdAt: Date;
+        role: string;
+    }>;
+    updateMe(actor: Actor, dto: UpdateProfileDto): Promise<{
         name: string;
         id: string;
         active: boolean;

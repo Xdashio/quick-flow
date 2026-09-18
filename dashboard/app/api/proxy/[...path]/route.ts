@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { decodeJwt } from 'jose';
 
 function getBackendUrl(): string {
   const raw =
@@ -25,6 +26,23 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   const { path } = await ctx.params;
   const cookieStore = await cookies();
   const token = cookieStore.get('pos_session')?.value;
+
+  // Defense in depth: staff management is admin/manager-only. The dashboard
+  // middleware already keeps cashiers off pages, but this stops a cashier
+  // token from reaching the user-management API directly through the proxy.
+  // (The signature itself was verified by the middleware before we got here.)
+  if (path[0] === 'users' && token) {
+    try {
+      if ((decodeJwt(token) as { role?: string }).role === 'cashier') {
+        return NextResponse.json(
+          { message: 'Cashiers cannot manage staff accounts.' },
+          { status: 403 },
+        );
+      }
+    } catch {
+      // Undecodable token — let it through; the backend JWT guard rejects it.
+    }
+  }
 
   const BACKEND = getBackendUrl();
   const target = `${BACKEND}/api/${path.join('/')}${req.nextUrl.search}`;

@@ -9,3 +9,8 @@ export declare class UpdateUserDto {
     role?: string;
     active?: boolean;
 }
+export declare class UpdateProfileDto {
+    name?: string;
+    password?: string;
+    currentPassword?: string;
+}

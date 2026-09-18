@@ -8,16 +8,20 @@ interface Props {
   userName: string;
   isActive: boolean;
   role?: string;
+  /** Self-deactivation is blocked here (would lock you out mid-session) — the
+   * backend also rejects it. Deactivating the last active admin is rejected
+   * by the backend with an explanatory error shown in the modal. */
+  currentUserId: string;
 }
 
-export function DeactivateButton({ userId, userName, isActive, role }: Props) {
+export function DeactivateButton({ userId, userName, isActive, currentUserId }: Props) {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Admins can't be deactivated or reactivated through this control — full stop.
-  const isLocked = role === 'admin';
+  // You can't deactivate yourself through this control — use your profile.
+  const isLocked = userId === currentUserId;
   const action: 'deactivate' | 'reactivate' = isActive ? 'deactivate' : 'reactivate';
 
   function open() {
@@ -84,7 +88,7 @@ export function DeactivateButton({ userId, userName, isActive, role }: Props) {
         id={`toggle-user-${userId}`}
         onClick={open}
         disabled={loading || isLocked}
-        title={isLocked ? 'Admins cannot be deactivated' : undefined}
+        title={isLocked ? 'You cannot deactivate your own account' : undefined}
         style={{ fontSize: 13, padding: '6px 12px' }}
       >
         {loading ? '…' : isActive ? 'Deactivate' : 'Reactivate'}
